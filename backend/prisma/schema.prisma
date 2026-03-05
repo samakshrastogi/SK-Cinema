@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int       @id @default(autoincrement())
+
+  email           String    @unique
+  username        String    @unique
+  password        String?
+
+  provider        AuthProvider @default(LOCAL)
+
+  isVerified      Boolean   @default(false)
+
+  otp             String?
+  otpExpiry       DateTime?
+
+  resetToken      String?
+  resetTokenExp   DateTime?
+
+  createdAt       DateTime  @default(now())
+
+  channel         Channel?
+  s3Credential    S3Credential[]
+}
+
+model Channel {
+  id          Int      @id @default(autoincrement())
+  name        String
+  username    String   @unique
+  description String?
+  userId      Int      @unique
+  user        User     @relation(fields: [userId], references: [id])
+  videos      Video[]
+  createdAt   DateTime @default(now())
+}
+
+model Video {
+  id            Int          @id @default(autoincrement())
+  title         String
+  s3Key         String       @unique
+  size          BigInt
+  thumbnailKey  String?
+  uploadSource  UploadSource
+  status        UploadStatus @default(UPLOADING)
+  channelId     Int
+  channel       Channel      @relation(fields: [channelId], references: [id])
+  createdAt     DateTime     @default(now())
+}
+
+model S3Credential {
+  id           Int      @id @default(autoincrement())
+  name         String   // Friendly name like "Client Backup Bucket"
+
+  accessKey    String
+  secretKey    String
+
+  region       String?  // Optional (not required for custom S3)
+  endpoint     String?  // ✅ NEW: supports custom S3 endpoints
+
+  bucketName   String
+
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+
+  createdAt    DateTime @default(now())
+}
+
+enum UploadStatus {
+  UPLOADING
+  UPLOADED
+  FAILED
+}
+
+enum UploadSource {
+  MANUAL
+  S3_IMPORT
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
