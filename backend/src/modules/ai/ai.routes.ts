@@ -1,8 +1,12 @@
 import { Router } from "express";
-import { generateMetadataController } from "./ai.controller";
+import {
+    generateMetadataController,
+    applyAISuggestionController,
+} from "./ai.controller";
 
 const router = Router();
 
-router.post("/generate-metadata", generateMetadataController);
+router.get("/video/:videoId", generateMetadataController);
+router.post("/video/:videoId/apply", applyAISuggestionController);
 
 export default router;

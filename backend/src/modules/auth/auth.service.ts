@@ -215,7 +215,6 @@ export const resetPassword = async (
     token: string,
     newPassword: string
 ) => {
-    console.log("RESET BODY:", { token, newPassword });
     const user = await prisma.user.findFirst({
         where: { resetToken: token },
     });

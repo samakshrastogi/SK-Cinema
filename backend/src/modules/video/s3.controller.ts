@@ -6,13 +6,11 @@ import {
     listUserBuckets,
 } from "./s3.service";
 
-/* =============================
-   1️⃣ Add Bucket
-============================= */
-
 export const addBucket = async (req: any, res: Response) => {
     try {
-        if (!req.user || !req.user.id) {
+        const userId = req.user?.id;
+
+        if (!userId) {
             return res.status(401).json({
                 message: "Unauthorized",
             });
@@ -34,7 +32,7 @@ export const addBucket = async (req: any, res: Response) => {
         }
 
         const result = await addUserBucket(
-            req.user.id,
+            userId,
             name,
             accessKey,
             secretKey,
@@ -51,13 +49,16 @@ export const addBucket = async (req: any, res: Response) => {
     }
 };
 
-/* =============================
-   2️⃣ Scan Bucket
-============================= */
-
 export const scanBucket = async (req: any, res: Response) => {
     try {
+        const userId = req.user?.id;
         const { id } = req.params;
+
+        if (!userId) {
+            return res.status(401).json({
+                message: "Unauthorized",
+            });
+        }
 
         if (!id) {
             return res.status(400).json({
@@ -67,7 +68,7 @@ export const scanBucket = async (req: any, res: Response) => {
 
         const files = await scanUserBucket(
             Number(id),
-            req.userId
+            userId
         );
 
         res.json(files);
@@ -78,12 +79,16 @@ export const scanBucket = async (req: any, res: Response) => {
     }
 };
 
-/* =============================
-   3️⃣ Import Video
-============================= */
-
 export const importVideo = async (req: any, res: Response) => {
     try {
+        const userId = req.user?.id;
+
+        if (!userId) {
+            return res.status(401).json({
+                message: "Unauthorized",
+            });
+        }
+
         const { credentialId, sourceKey } = req.body;
 
         if (!credentialId || !sourceKey) {
@@ -94,7 +99,7 @@ export const importVideo = async (req: any, res: Response) => {
 
         const newKey = await importVideoFromUserBucket(
             Number(credentialId),
-            req.userId,
+            userId,
             sourceKey
         );
 
@@ -106,13 +111,18 @@ export const importVideo = async (req: any, res: Response) => {
     }
 };
 
-/* =============================
-   4️⃣ List Buckets
-============================= */
-
 export const listBuckets = async (req: any, res: Response) => {
     try {
-        const buckets = await listUserBuckets(req.userId);
+        const userId = req.user?.id;
+
+        if (!userId) {
+            return res.status(401).json({
+                message: "Unauthorized",
+            });
+        }
+
+        const buckets = await listUserBuckets(userId);
+
         res.json(buckets);
     } catch (error: any) {
         res.status(400).json({

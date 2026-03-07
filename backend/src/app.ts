@@ -10,6 +10,7 @@ import videoRoutes from "./modules/video/video.routes";
 import channelRoutes from "./modules/channel/channel.routes";
 import { prisma } from "./config/prisma";
 import aiRoutes from "./modules/ai/ai.routes";
+import "./workers";
 
 const app = express();
 

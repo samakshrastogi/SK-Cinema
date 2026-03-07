@@ -1,17 +1,17 @@
 import {
     PutObjectCommand,
     ListObjectsV2Command,
+    GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as getCFSignedUrl } from "@aws-sdk/cloudfront-signer";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { prisma } from "../../config/prisma";
 import { s3 } from "../../config/s3";
+import { videoAIQueue } from "../../queues/video-ai.queue";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { generateThumbnail } from "../../utils/thumbnail";
-
 
 const signCloudFrontUrl = (key: string) => {
     const url = `https://${process.env.CLOUDFRONT_DOMAIN}/${key}`;
@@ -39,8 +39,7 @@ export const generatePresignedUrl = async (
     });
 
     if (!user) throw new Error("User not found");
-    if (!user.channel)
-        throw new Error("Please create a channel first");
+    if (!user.channel) throw new Error("Please create a channel first");
 
     const safeFileName = fileName.replace(/\s+/g, "_");
 
@@ -65,94 +64,121 @@ export const completeUpload = async (
     title: string,
     size: number
 ) => {
+
     const user = await prisma.user.findUnique({
         where: { id: userId },
         include: { channel: true },
-    });
+    })
 
     if (!user || !user.channel) {
-        throw new Error("Channel not found");
+        throw new Error("Channel not found")
     }
 
     const existing = await prisma.video.findUnique({
         where: { s3Key: key },
-    });
+    })
 
-    if (existing) return existing;
+    if (existing) return existing
 
-    const tempDir = os.tmpdir();
-    const tempVideoPath = path.join(tempDir, `${Date.now()}_video.mp4`);
-    const tempThumbnailPath = path.join(tempDir, `${Date.now()}_thumb.jpg`);
+    const tempDir = os.tmpdir()
 
-    /* ---------------------------
-       1️⃣ Download video from S3
-    ---------------------------- */
+    const tempVideoPath = path.join(tempDir, `${Date.now()}_video.mp4`)
+    const tempThumbnailPath = path.join(tempDir, `${Date.now()}_thumb.jpg`)
 
-    const getCommand = new GetObjectCommand({
-        Bucket: process.env.AWS_BUCKET!,
-        Key: key,
-    });
+    try {
 
-    const response = await s3.send(getCommand);
-    const stream = response.Body as any;
+        /* ---------------- DOWNLOAD VIDEO ---------------- */
 
-    await new Promise((resolve, reject) => {
-        const writeStream = fs.createWriteStream(tempVideoPath);
-        stream.pipe(writeStream);
-        stream.on("error", reject);
-        writeStream.on("finish", resolve);
-    });
-
-    /* ---------------------------
-       2️⃣ Generate thumbnail
-    ---------------------------- */
-
-    await generateThumbnail(tempVideoPath, tempThumbnailPath);
-
-    /* ---------------------------
-       3️⃣ Upload thumbnail to S3
-    ---------------------------- */
-
-    const thumbnailKey = `${user.channel.username}/thumbnails/${Date.now()}.jpg`;
-
-    const thumbnailBuffer = fs.readFileSync(tempThumbnailPath);
-
-    await s3.send(
-        new PutObjectCommand({
+        const getCommand = new GetObjectCommand({
             Bucket: process.env.AWS_BUCKET!,
-            Key: thumbnailKey,
-            Body: thumbnailBuffer,
-            ContentType: "image/jpeg",
+            Key: key,
         })
-    );
 
-    /* ---------------------------
-       4️⃣ Cleanup temp files
-    ---------------------------- */
+        const response = await s3.send(getCommand)
+        const stream = response.Body as any
 
-    fs.unlinkSync(tempVideoPath);
-    fs.unlinkSync(tempThumbnailPath);
+        await new Promise((resolve, reject) => {
+            const writeStream = fs.createWriteStream(tempVideoPath)
+            stream.pipe(writeStream)
+            stream.on("error", reject)
+            writeStream.on("finish", resolve)
+        })
 
-    /* ---------------------------
-       5️⃣ Save video record
-    ---------------------------- */
+        /* ---------------- GENERATE THUMBNAIL ---------------- */
 
-    return prisma.video.create({
-        data: {
-            title,
-            s3Key: key,
-            thumbnailKey,
-            size: BigInt(size),
-            uploadSource: "MANUAL",
-            status: "UPLOADED",
-            channelId: user.channel.id,
-        },
-    });
-};
+        await generateThumbnail(tempVideoPath, tempThumbnailPath)
 
-/* ===============================
-   🔥 NEW: Scan S3 Videos
-================================ */
+        const thumbnailKey =
+            `${user.channel.username}/thumbnails/${Date.now()}.jpg`
+
+        const thumbnailBuffer = fs.readFileSync(tempThumbnailPath)
+
+        await s3.send(
+            new PutObjectCommand({
+                Bucket: process.env.AWS_BUCKET!,
+                Key: thumbnailKey,
+                Body: thumbnailBuffer,
+                ContentType: "image/jpeg",
+            })
+        )
+
+        /* ---------------- SAVE VIDEO ---------------- */
+
+        const video = await prisma.video.create({
+            data: {
+                title,
+                s3Key: key,
+                thumbnailKey,
+                size: BigInt(size),
+                uploadSource: "MANUAL",
+                status: "UPLOADED",
+                channelId: user.channel.id,
+            },
+        })
+
+        /* ---------------- CREATE AI RECORD ---------------- */
+
+        await prisma.videoAI.create({
+            data: {
+                videoId: video.id,
+                status: "pending"
+            },
+        })
+
+        /* ---------------- QUEUE AI JOB ---------------- */
+
+        await videoAIQueue.add(
+            "processVideoAI",
+            { videoId: video.id },
+            {
+                attempts: 3,
+                backoff: {
+                    type: "exponential",
+                    delay: 5000,
+                },
+                removeOnComplete: true,
+                removeOnFail: false,
+            }
+        )
+
+        console.log("AI job queued for video:", video.id)
+
+        return video
+
+    } catch (error) {
+
+        console.error("Upload processing failed:", error)
+
+        throw error
+
+    } finally {
+
+        if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath)
+
+        if (fs.existsSync(tempThumbnailPath)) fs.unlinkSync(tempThumbnailPath)
+
+    }
+}
 
 export const scanS3Videos = async (userId: number) => {
     if (!process.env.AWS_BUCKET) {
@@ -173,7 +199,6 @@ export const scanS3Videos = async (userId: number) => {
     let totalInS3 = 0;
     const s3Keys: string[] = [];
 
-    // 🔥 Paginated S3 scanning (scalable)
     do {
         const command = new ListObjectsV2Command({
             Bucket: process.env.AWS_BUCKET,
@@ -197,7 +222,6 @@ export const scanS3Videos = async (userId: number) => {
         continuationToken = response.NextContinuationToken;
     } while (continuationToken);
 
-    // 🔥 Faster DB comparison using Set
     const dbVideos = await prisma.video.findMany({
         where: { channelId: user.channel.id },
         select: { s3Key: true },
@@ -205,9 +229,7 @@ export const scanS3Videos = async (userId: number) => {
 
     const dbKeySet = new Set(dbVideos.map((v) => v.s3Key));
 
-    const remainingVideos = s3Keys.filter(
-        (key) => !dbKeySet.has(key)
-    );
+    const remainingVideos = s3Keys.filter((key) => !dbKeySet.has(key));
 
     return {
         totalInS3,
@@ -243,8 +265,8 @@ export const getAllVideos = async () => {
     }));
 };
 
-
 export const getVideoById = async (id: number) => {
+
     const video = await prisma.video.findUnique({
         where: { id },
         include: {
@@ -254,6 +276,7 @@ export const getVideoById = async (id: number) => {
                     username: true,
                 },
             },
+            aiData: true
         },
     });
 
@@ -263,6 +286,7 @@ export const getVideoById = async (id: number) => {
 
     return {
         ...video,
+        videoAI: video.aiData, // map to frontend expected field
         size: video.size.toString(),
         signedUrl: signCloudFrontUrl(video.s3Key),
         thumbnailUrl: video.thumbnailKey

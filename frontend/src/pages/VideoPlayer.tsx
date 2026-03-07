@@ -20,6 +20,13 @@ interface RelatedVideo {
     thumbnailKey: string;
 }
 
+interface AiMetadata {
+    title?: string;
+    description?: string;
+    keywords?: string[];
+    tags?: string[];
+}
+
 const VideoPlayer = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -28,21 +35,41 @@ const VideoPlayer = () => {
     const [video, setVideo] = useState<VideoDetail | null>(null);
     const [related, setRelated] = useState<RelatedVideo[]>([]);
     const [cinemaMode, setCinemaMode] = useState(false);
+
+    const [aiData, setAiData] = useState<AiMetadata | null>(null);
+
     const [messages, setMessages] = useState<string[]>([
         "Welcome to SK Cinema 👋",
         "Enjoy your experience 🚀",
     ]);
+
     const [input, setInput] = useState("");
 
     useEffect(() => {
         fetchVideo();
+        fetchAISuggestions();
     }, [id]);
 
     const fetchVideo = async () => {
         const res = await api.get(`/video/${id}`);
         setVideo(res.data);
+
         const relatedRes = await api.get("/video/list");
         setRelated(relatedRes.data.filter((v: any) => v.id !== Number(id)));
+    };
+
+    const fetchAISuggestions = async () => {
+        try {
+            const res = await api.get(`/ai/video/${id}`);
+            setAiData(res.data);
+        } catch { }
+    };
+
+    const applyAISuggestion = async () => {
+        try {
+            await api.post(`/ai/video/${id}/apply`);
+            fetchVideo();
+        } catch { }
     };
 
     const handleEnded = () => {
@@ -66,8 +93,10 @@ const VideoPlayer = () => {
     }
 
     return (
-        <div className={`min-h-screen bg-[#0b1120] text-white transition-all duration-500 ${cinemaMode ? "bg-black" : ""}`}>
-
+        <div
+            className={`min-h-screen bg-[#0b1120] text-white transition-all duration-500 ${cinemaMode ? "bg-black" : ""
+                }`}
+        >
             <div className="sticky top-0 z-50 backdrop-blur-md bg-black/40 px-8 py-4 flex justify-between items-center">
                 <h1 className="text-xl font-bold tracking-wide">SK Cinema</h1>
                 <button
@@ -78,10 +107,11 @@ const VideoPlayer = () => {
                 </button>
             </div>
 
-            <div className={`max-w-7xl mx-auto px-6 py-8 grid ${cinemaMode ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-4"} gap-8`}>
-
+            <div
+                className={`max-w-7xl mx-auto px-6 py-8 grid ${cinemaMode ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-4"
+                    } gap-8`}
+            >
                 <div className={`${cinemaMode ? "col-span-1" : "lg:col-span-3"} space-y-6`}>
-
                     <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl">
                         <video
                             ref={videoRef}
@@ -91,43 +121,75 @@ const VideoPlayer = () => {
                             onEnded={handleEnded}
                             className="w-full h-[500px] bg-black"
                         />
-                        <div className="absolute bottom-4 right-4 text-xs text-white/70 pointer-events-none">
-                            SK Cinema
-                        </div>
                     </div>
 
                     {!cinemaMode && (
                         <div className="bg-[#111827] p-6 rounded-2xl shadow-lg space-y-4">
                             <h2 className="text-2xl font-semibold">{video.title}</h2>
 
-                            <div className="flex justify-between items-center flex-wrap gap-4">
-                                <div>
-                                    <p className="text-gray-300 text-sm">{video.channel.name}</p>
-                                    <p className="text-gray-500 text-xs">
-                                        {new Date(video.createdAt).toLocaleDateString()}
-                                    </p>
-                                </div>
-
-                                <div className="flex gap-3">
-                                    <button className="bg-purple-600 hover:bg-purple-700 px-5 py-2 rounded-lg text-sm transition">
-                                        👍 Like
-                                    </button>
-                                    <button className="bg-gray-600 hover:bg-gray-500 px-5 py-2 rounded-lg text-sm transition">
-                                        🔗 Share
-                                    </button>
-                                    <button className="bg-red-600 hover:bg-red-700 px-5 py-2 rounded-lg text-sm transition">
-                                        Subscribe
-                                    </button>
-                                </div>
+                            <div>
+                                <p className="text-gray-300 text-sm">{video.channel.name}</p>
+                                <p className="text-gray-500 text-xs">
+                                    {new Date(video.createdAt).toLocaleDateString()}
+                                </p>
                             </div>
                         </div>
                     )}
 
+                    {!cinemaMode && aiData && (
+                        <div className="bg-[#111827] p-6 rounded-2xl shadow-lg space-y-4">
+                            <h3 className="text-lg font-semibold">AI Suggestions</h3>
+
+                            <div>
+                                <p className="text-sm text-gray-400">Title</p>
+                                <p>{aiData.title}</p>
+                            </div>
+
+                            <div>
+                                <p className="text-sm text-gray-400">Description</p>
+                                <p>{aiData.description}</p>
+                            </div>
+
+                            <div>
+                                <p className="text-sm text-gray-400">Keywords</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {aiData.keywords?.map((k) => (
+                                        <span
+                                            key={k}
+                                            className="bg-gray-700 px-2 py-1 rounded text-xs"
+                                        >
+                                            {k}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <p className="text-sm text-gray-400">Tags</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {aiData.tags?.map((t) => (
+                                        <span
+                                            key={t}
+                                            className="bg-purple-700 px-2 py-1 rounded text-xs"
+                                        >
+                                            {t}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={applyAISuggestion}
+                                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm transition"
+                            >
+                                Use AI Suggestion
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {!cinemaMode && (
                     <div className="space-y-6">
-
                         <div className="bg-[#111827] p-5 rounded-2xl shadow-lg flex flex-col">
                             <h3 className="text-lg font-semibold mb-4">Live Chat</h3>
 
@@ -181,10 +243,8 @@ const VideoPlayer = () => {
                                 ))}
                             </div>
                         </div>
-
                     </div>
                 )}
-
             </div>
         </div>
     );

@@ -16,10 +16,6 @@ import path from "path";
 import os from "os";
 import { pipeline } from "stream/promises";
 
-/* =========================================================
-   🔧 Create S3 Client
-========================================================= */
-
 const createS3Client = (
     accessKey: string,
     secretKey: string,
@@ -37,10 +33,6 @@ const createS3Client = (
     });
 };
 
-/* =========================================================
-   1️⃣ Add User Bucket
-========================================================= */
-
 export const addUserBucket = async (
     userId: number,
     name: string,
@@ -52,37 +44,27 @@ export const addUserBucket = async (
 ) => {
     if (!userId) throw new Error("Invalid user");
 
-    try {
-        const client = createS3Client(accessKey, secretKey, region, endpoint);
+    const client = createS3Client(accessKey, secretKey, region, endpoint);
 
-        // Test connection
-        await client.send(
-            new ListObjectsV2Command({
-                Bucket: bucketName,
-                MaxKeys: 1,
-            })
-        );
+    await client.send(
+        new ListObjectsV2Command({
+            Bucket: bucketName,
+            MaxKeys: 1,
+        })
+    );
 
-        return prisma.s3Credential.create({
-            data: {
-                name,
-                accessKey: encrypt(accessKey),
-                secretKey: encrypt(secretKey),
-                region,
-                endpoint,
-                bucketName,
-                userId,
-            },
-        });
-    } catch (error: any) {
-        console.error("S3 CONNECTION ERROR:", error);
-        throw new Error("Unable to connect to bucket. Check credentials.");
-    }
+    return prisma.s3Credential.create({
+        data: {
+            name,
+            accessKey: encrypt(accessKey),
+            secretKey: encrypt(secretKey),
+            region,
+            endpoint,
+            bucketName,
+            userId,
+        },
+    });
 };
-
-/* =========================================================
-   2️⃣ Scan Bucket (Full Pagination)
-========================================================= */
 
 export const scanUserBucket = async (
     credentialId: number,
@@ -125,10 +107,6 @@ export const scanUserBucket = async (
     }));
 };
 
-/* =========================================================
-   3️⃣ Import Video + Thumbnail
-========================================================= */
-
 export const importVideoFromUserBucket = async (
     credentialId: number,
     userId: number,
@@ -141,8 +119,7 @@ export const importVideoFromUserBucket = async (
         include: { user: { include: { channel: true } } },
     });
 
-    if (!cred || !cred.user.channel)
-        throw new Error("Channel not found");
+    if (!cred || !cred.user.channel) throw new Error("Channel not found");
 
     const client = createS3Client(
         decrypt(cred.accessKey),
@@ -160,8 +137,6 @@ export const importVideoFromUserBucket = async (
     const thumbnailKey =
         `${cred.user.channel.username}/thumbnails/${uniqueName.replace(/\.\w+$/, ".jpg")}`;
 
-    /* ---------- 1️⃣ Get Metadata ---------- */
-
     const metadata = await client.send(
         new HeadObjectCommand({
             Bucket: cred.bucketName,
@@ -169,10 +144,7 @@ export const importVideoFromUserBucket = async (
         })
     );
 
-    if (!metadata.ContentLength)
-        throw new Error("Unable to determine file size");
-
-    /* ---------- 2️⃣ Download Temp File ---------- */
+    if (!metadata.ContentLength) throw new Error("Unable to determine file size");
 
     const tempVideoPath = path.join(os.tmpdir(), uniqueName);
     const tempThumbPath = path.join(
@@ -187,15 +159,12 @@ export const importVideoFromUserBucket = async (
         })
     );
 
-    if (!object.Body)
-        throw new Error("Failed to retrieve file");
+    if (!object.Body) throw new Error("Failed to retrieve file");
 
     await pipeline(
         object.Body as any,
         fs.createWriteStream(tempVideoPath)
     );
-
-    /* ---------- 3️⃣ Upload Video to Main S3 ---------- */
 
     await s3.send(
         new PutObjectCommand({
@@ -208,8 +177,6 @@ export const importVideoFromUserBucket = async (
         })
     );
 
-    /* ---------- 4️⃣ Generate & Upload Thumbnail ---------- */
-
     await generateThumbnail(tempVideoPath, tempThumbPath);
 
     await s3.send(
@@ -220,8 +187,6 @@ export const importVideoFromUserBucket = async (
             ContentType: "image/jpeg",
         })
     );
-
-    /* ---------- 5️⃣ Save DB ---------- */
 
     const video = await prisma.video.create({
         data: {
@@ -236,14 +201,10 @@ export const importVideoFromUserBucket = async (
         include: { channel: true },
     });
 
-    /* ---------- 6️⃣ Cleanup ---------- */
-
     try {
         fs.existsSync(tempVideoPath) && fs.unlinkSync(tempVideoPath);
         fs.existsSync(tempThumbPath) && fs.unlinkSync(tempThumbPath);
-    } catch (err) {
-        console.warn("Temp cleanup failed:", err);
-    }
+    } catch { }
 
     return {
         id: video.id,
@@ -259,10 +220,6 @@ export const importVideoFromUserBucket = async (
         importTimeMs: Date.now() - startTime,
     };
 };
-
-/* =========================================================
-   4️⃣ List Buckets
-========================================================= */
 
 export const listUserBuckets = async (userId: number) => {
     return prisma.s3Credential.findMany({

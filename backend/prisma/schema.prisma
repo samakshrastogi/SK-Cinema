@@ -51,25 +51,38 @@ model Video {
   status        UploadStatus @default(UPLOADING)
   channelId     Int
   channel       Channel      @relation(fields: [channelId], references: [id])
+  aiData        VideoAI?
   createdAt     DateTime     @default(now())
 }
 
 model S3Credential {
   id           Int      @id @default(autoincrement())
   name         String   // Friendly name like "Client Backup Bucket"
-
   accessKey    String
   secretKey    String
-
   region       String?  // Optional (not required for custom S3)
   endpoint     String?  // ✅ NEW: supports custom S3 endpoints
-
   bucketName   String
-
   userId       Int
   user         User     @relation(fields: [userId], references: [id])
-
   createdAt    DateTime @default(now())
+}
+
+model VideoAI {
+  id            Int      @id @default(autoincrement())
+
+  videoId       Int      @unique
+  video         Video    @relation(fields: [videoId], references: [id])
+
+  transcript    String?
+  keywords      String[]
+  tags          String[]
+  aiTitle       String?
+  aiDescription String?
+
+  status        String   @default("pending")
+
+  createdAt     DateTime @default(now())
 }
 
 enum UploadStatus {
