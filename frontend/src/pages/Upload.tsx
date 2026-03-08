@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import axios from "axios"
-import { io, Socket } from "socket.io-client"
+import { io } from "socket.io-client"
 
 import { api } from "@/api/axios"
 
@@ -38,8 +38,9 @@ interface UploadItem {
 
 /* ---------------- SOCKET ---------------- */
 
-const socket: Socket = io(import.meta.env.VITE_SOCKET_URL, {
-    transports: ["websocket"],
+const socket = io("http://localhost:5000", {
+    path: "/socket.io",
+    transports: ["websocket"]
 })
 
 const Upload = () => {

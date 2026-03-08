@@ -5,15 +5,16 @@ import {
     importVideoFromUserBucket,
     listUserBuckets,
 } from "./s3.service";
+import { prisma } from "../../config/prisma";
+import { processVideoAfterUpload } from "../video/video-processing.service";
 
 export const addBucket = async (req: any, res: Response) => {
     try {
+
         const userId = req.user?.id;
 
         if (!userId) {
-            return res.status(401).json({
-                message: "Unauthorized",
-            });
+            return res.status(401).json({ message: "Unauthorized" });
         }
 
         const {
@@ -42,45 +43,42 @@ export const addBucket = async (req: any, res: Response) => {
         );
 
         res.json(result);
+
     } catch (error: any) {
+
         res.status(400).json({
             message: error?.message || "Failed to add bucket",
         });
+
     }
 };
 
 export const scanBucket = async (req: any, res: Response) => {
     try {
+
         const userId = req.user?.id;
         const { id } = req.params;
 
         if (!userId) {
-            return res.status(401).json({
-                message: "Unauthorized",
-            });
+            return res.status(401).json({ message: "Unauthorized" });
         }
 
-        if (!id) {
-            return res.status(400).json({
-                message: "Credential ID required",
-            });
-        }
-
-        const files = await scanUserBucket(
-            Number(id),
-            userId
-        );
+        const files = await scanUserBucket(Number(id), userId);
 
         res.json(files);
+
     } catch (error: any) {
+
         res.status(400).json({
             message: error?.message || "Failed to scan bucket",
         });
+
     }
 };
 
 export const importVideo = async (req: any, res: Response) => {
     try {
+
         const userId = req.user?.id;
 
         if (!userId) {
@@ -97,36 +95,41 @@ export const importVideo = async (req: any, res: Response) => {
             });
         }
 
-        const newKey = await importVideoFromUserBucket(
+        const video = await importVideoFromUserBucket(
             Number(credentialId),
             userId,
             sourceKey
         );
 
-        res.json({ key: newKey });
+        res.json(video);
+
     } catch (error: any) {
+
         res.status(400).json({
             message: error?.message || "Import failed",
         });
+
     }
 };
 
 export const listBuckets = async (req: any, res: Response) => {
     try {
+
         const userId = req.user?.id;
 
         if (!userId) {
-            return res.status(401).json({
-                message: "Unauthorized",
-            });
+            return res.status(401).json({ message: "Unauthorized" });
         }
 
         const buckets = await listUserBuckets(userId);
 
         res.json(buckets);
+
     } catch (error: any) {
+
         res.status(400).json({
             message: error?.message || "Failed to list buckets",
         });
+
     }
 };

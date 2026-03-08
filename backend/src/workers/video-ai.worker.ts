@@ -15,8 +15,6 @@ import { pipeline } from "stream/promises"
 
 ffmpeg.setFfmpegPath("ffmpeg")
 
-/* ---------------- AUDIO EXTRACTION ---------------- */
-
 const extractAudio = (videoPath: string, audioPath: string): Promise<void> => {
     return new Promise((resolve, reject) => {
         ffmpeg(videoPath)
@@ -24,11 +22,9 @@ const extractAudio = (videoPath: string, audioPath: string): Promise<void> => {
             .audioCodec("libmp3lame")
             .save(audioPath)
             .on("end", () => resolve())
-            .on("error", (err) => reject(err))
+            .on("error", reject)
     })
 }
-
-/* ---------------- WHISPER ---------------- */
 
 const runWhisper = (audioPath: string): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -37,7 +33,7 @@ const runWhisper = (audioPath: string): Promise<string> => {
 
         exec(
             `whisper "${audioPath}" --model base --output_format txt --output_dir "${outputDir}"`,
-            (error, stdout, stderr) => {
+            (error) => {
 
                 if (error) {
                     reject(error)
@@ -55,7 +51,6 @@ const runWhisper = (audioPath: string): Promise<string> => {
                 }
 
                 const transcript = fs.readFileSync(transcriptFile, "utf-8")
-
                 resolve(transcript)
             }
         )
@@ -63,18 +58,16 @@ const runWhisper = (audioPath: string): Promise<string> => {
     })
 }
 
-/* ---------------- OLLAMA ---------------- */
-
 const runOllama = async (transcript: string) => {
 
     const prompt = `
 Return ONLY valid JSON.
 
 {
-"title":"",
-"description":"",
-"keywords":[],
-"tags":[]
+"title":"string",
+"description":"string",
+"keywords":["string"],
+"tags":["string"]
 }
 
 Transcript:
@@ -89,7 +82,7 @@ ${transcript}
             stream: false,
             options: {
                 temperature: 0,
-                num_predict: 120
+                num_predict: 600
             }
         }
     )
@@ -97,50 +90,61 @@ ${transcript}
     return response.data.response
 }
 
-/* ---------------- HELPERS ---------------- */
-
-const shortenTranscript = (text: string) => {
-    const words = text.split(/\s+/)
-    return words.slice(0, 300).join(" ")
-}
-
 const extractJSON = (text: string) => {
 
-    const match = text.match(/\{[\s\S]*\}/)
-
-    if (!match) return {}
-
     try {
-        return JSON.parse(match[0])
+
+        const first = text.indexOf("{")
+        const last = text.lastIndexOf("}")
+
+        if (first === -1 || last === -1) return {}
+
+        return JSON.parse(text.substring(first, last + 1))
+
     } catch {
         return {}
     }
 
 }
 
-/* ---------------- AI PROCESS ---------------- */
+const normalizeArray = (value: any) => {
+
+    if (Array.isArray(value)) return value
+
+    if (typeof value === "string") {
+        return value
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean)
+    }
+
+    return []
+
+}
+
+const shortenTranscript = (text: string) => {
+    const words = text.split(/\s+/)
+    return words.slice(0, 300).join(" ")
+}
 
 const processVideoAI = async (job: Job) => {
 
     const start = Date.now()
-
     const { videoId } = job.data
 
     console.log("AI Worker started:", videoId)
 
-    const sendProgress = async (progress: number) => {
+    const updateProgress = async (progress: number) => {
         await job.updateProgress({ videoId, progress })
     }
 
-    await sendProgress(5)
+    await updateProgress(5)
 
     const video = await prisma.video.findUnique({
         where: { id: videoId }
     })
 
-    if (!video) {
-        throw new Error("Video not found")
-    }
+    if (!video) throw new Error("Video not found")
 
     const tempVideoPath = path.join(os.tmpdir(), `${videoId}_video.mp4`)
     const tempAudioPath = path.join(os.tmpdir(), `${videoId}_audio.mp3`)
@@ -151,8 +155,6 @@ const processVideoAI = async (job: Job) => {
             where: { videoId },
             data: { status: "processing" }
         })
-
-        /* ---------------- DOWNLOAD VIDEO ---------------- */
 
         console.log("Downloading video")
 
@@ -165,43 +167,42 @@ const processVideoAI = async (job: Job) => {
 
         await pipeline(object.Body as any, fs.createWriteStream(tempVideoPath))
 
-        await sendProgress(25)
-
-        /* ---------------- AUDIO EXTRACTION ---------------- */
+        await updateProgress(25)
 
         console.log("Extracting audio")
 
         await extractAudio(tempVideoPath, tempAudioPath)
 
-        await sendProgress(45)
-
-        /* ---------------- WHISPER ---------------- */
+        await updateProgress(45)
 
         console.log("Running whisper")
 
         const transcript = await runWhisper(tempAudioPath)
 
-        await sendProgress(65)
-
-        /* ---------------- OLLAMA ---------------- */
+        await updateProgress(65)
 
         console.log("Generating metadata")
 
-        const shortTranscript = shortenTranscript(transcript)
+        const rawResponse = await runOllama(shortenTranscript(transcript))
 
-        const rawResponse = await runOllama(shortTranscript)
+        console.log("OLLAMA RAW:", rawResponse)
 
         const parsed = extractJSON(rawResponse)
 
-        const keywords = Array.isArray(parsed.keywords) ? parsed.keywords : []
-        const tags = Array.isArray(parsed.tags) ? parsed.tags : []
+        const keywords = normalizeArray(parsed.keywords)
+        const tags = normalizeArray(parsed.tags)
 
-        const aiTitle = parsed.title || null
-        const aiDescription = parsed.description || null
+        const aiTitle =
+            typeof parsed.title === "string"
+                ? parsed.title
+                : transcript.split(".")[0].slice(0, 80)
 
-        await sendProgress(90)
+        const aiDescription =
+            typeof parsed.description === "string"
+                ? parsed.description
+                : transcript.slice(0, 200)
 
-        /* ---------------- SAVE AI DATA ---------------- */
+        await updateProgress(90)
 
         await prisma.videoAI.update({
             where: { videoId },
@@ -215,7 +216,7 @@ const processVideoAI = async (job: Job) => {
             }
         })
 
-        await sendProgress(100)
+        await updateProgress(100)
 
         console.log("AI completed:", videoId)
         console.log("AI time:", Date.now() - start, "ms")
@@ -235,14 +236,14 @@ const processVideoAI = async (job: Job) => {
 
     } finally {
 
-        if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath)
-        if (fs.existsSync(tempAudioPath)) fs.unlinkSync(tempAudioPath)
+        try {
+            if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath)
+            if (fs.existsSync(tempAudioPath)) fs.unlinkSync(tempAudioPath)
+        } catch { }
 
     }
 
 }
-
-/* ---------------- WORKER ---------------- */
 
 const worker = new Worker(
     "videoAIQueue",

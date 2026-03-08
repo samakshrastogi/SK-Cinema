@@ -8,8 +8,8 @@ import authRoutes from "./modules/auth/auth.routes";
 import userRoutes from "./modules/user/user.routes";
 import videoRoutes from "./modules/video/video.routes";
 import channelRoutes from "./modules/channel/channel.routes";
-import { prisma } from "./config/prisma";
 import aiRoutes from "./modules/ai/ai.routes";
+import { prisma } from "./config/prisma";
 import "./workers";
 
 const app = express();
@@ -18,8 +18,8 @@ const JWT_SECRET = process.env.JWT_SECRET as string;
 
 app.use(
     cors({
-        origin: process.env.CLIENT_URL,
-        credentials: true,
+        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        credentials: true
     })
 );
 
@@ -29,7 +29,7 @@ app.use(
     session({
         secret: JWT_SECRET,
         resave: false,
-        saveUninitialized: false,
+        saveUninitialized: false
     })
 );
 
@@ -41,30 +41,35 @@ passport.use(
         {
             clientID: process.env.GOOGLE_CLIENT_ID as string,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-            callbackURL: process.env.GOOGLE_CALLBACK_URL,
+            callbackURL: process.env.GOOGLE_CALLBACK_URL
         },
         async (_accessToken, _refreshToken, profile, done) => {
             try {
                 const email = profile.emails?.[0].value;
-                if (!email) return done(new Error("No email"), false);
 
-                let user = await prisma.user.findUnique({ where: { email } });
+                if (!email) {
+                    return done(new Error("No email"), false);
+                }
+
+                let user = await prisma.user.findUnique({
+                    where: { email }
+                });
 
                 if (!user) {
                     user = await prisma.user.create({
                         data: {
                             email,
                             username: email.split("@")[0],
-                            password: "",
-                        },
+                            password: ""
+                        }
                     });
 
                     await prisma.channel.create({
                         data: {
                             name: user.username,
                             username: user.username,
-                            userId: user.id,
-                        },
+                            userId: user.id
+                        }
                     });
                 }
 

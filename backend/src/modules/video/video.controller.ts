@@ -8,6 +8,7 @@ import {
 } from "./video.service";
 import { prisma } from "../../config/prisma";
 import { AuthRequest } from "../../middlewares/auth.middleware";
+import { processVideoAfterUpload } from "./video-processing.service";
 
 export const getPresignedUrl = async (
     req: AuthRequest,
@@ -33,10 +34,13 @@ export const getPresignedUrl = async (
         );
 
         return res.json(result);
+
     } catch (error: any) {
+
         return res.status(500).json({
             message: error.message || "Failed to generate upload URL",
         });
+
     }
 };
 
@@ -45,6 +49,7 @@ export const finishUpload = async (
     res: Response
 ) => {
     try {
+
         if (!req.user) {
             return res.status(401).json({ message: "Unauthorized" });
         }
@@ -68,10 +73,13 @@ export const finishUpload = async (
             ...video,
             size: video.size.toString(),
         });
+
     } catch (error: any) {
+
         return res.status(500).json({
             message: error.message || "Failed to complete upload",
         });
+
     }
 };
 
@@ -80,16 +88,21 @@ export const handleScanS3 = async (
     res: Response
 ) => {
     try {
+
         if (!req.user) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
         const summary = await scanS3Videos(req.user.id);
+
         return res.json(summary);
+
     } catch (error: any) {
+
         return res.status(500).json({
             message: error.message || "Failed to scan S3",
         });
+
     }
 };
 
@@ -98,6 +111,7 @@ export const importSelectedVideos = async (
     res: Response
 ) => {
     try {
+
         if (!req.user) {
             return res.status(401).json({ message: "Unauthorized" });
         }
@@ -124,12 +138,14 @@ export const importSelectedVideos = async (
         const imported: string[] = [];
 
         for (const key of keys) {
+
             const exists = await prisma.video.findUnique({
                 where: { s3Key: key },
             });
 
             if (!exists) {
-                await prisma.video.create({
+
+                const video = await prisma.video.create({
                     data: {
                         title: key.split("/").pop() || "Untitled",
                         s3Key: key,
@@ -140,18 +156,29 @@ export const importSelectedVideos = async (
                     },
                 });
 
+                await processVideoAfterUpload(
+                    video.id,
+                    key,
+                    user.channel.username
+                );
+
                 imported.push(key);
+
             }
+
         }
 
         return res.json({
             importedCount: imported.length,
             imported,
         });
+
     } catch (error: any) {
+
         return res.status(500).json({
             message: error.message || "Failed to import videos",
         });
+
     }
 };
 
@@ -160,6 +187,7 @@ export const handleGetVideos = async (
     res: Response
 ) => {
     try {
+
         const videos = await getAllVideos();
 
         return res.json(
@@ -168,10 +196,13 @@ export const handleGetVideos = async (
                 size: video.size.toString(),
             }))
         );
+
     } catch {
+
         return res.status(500).json({
             message: "Failed to fetch videos",
         });
+
     }
 };
 
@@ -180,14 +211,18 @@ export const handleGetVideoById = async (
     res: Response
 ) => {
     try {
+
         const id = Number(req.params.id);
 
         const video = await getVideoById(id);
 
         return res.json(video);
+
     } catch (error: any) {
+
         return res.status(404).json({
             message: error.message || "Video not found",
         });
+
     }
 };

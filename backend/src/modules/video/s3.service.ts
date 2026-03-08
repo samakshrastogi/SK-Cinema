@@ -10,6 +10,7 @@ import { prisma } from "../../config/prisma";
 import { encrypt, decrypt } from "../../utils/crypto";
 import { s3 } from "../../config/s3";
 import { generateThumbnail } from "../../utils/thumbnail";
+import { videoAIQueue } from "../../queues/video-ai.queue";
 
 import fs from "fs";
 import path from "path";
@@ -42,8 +43,6 @@ export const addUserBucket = async (
     bucketName: string,
     endpoint?: string | null
 ) => {
-    if (!userId) throw new Error("Invalid user");
-
     const client = createS3Client(accessKey, secretKey, region, endpoint);
 
     await client.send(
@@ -161,10 +160,7 @@ export const importVideoFromUserBucket = async (
 
     if (!object.Body) throw new Error("Failed to retrieve file");
 
-    await pipeline(
-        object.Body as any,
-        fs.createWriteStream(tempVideoPath)
-    );
+    await pipeline(object.Body as any, fs.createWriteStream(tempVideoPath));
 
     await s3.send(
         new PutObjectCommand({
@@ -200,6 +196,29 @@ export const importVideoFromUserBucket = async (
         },
         include: { channel: true },
     });
+
+    await prisma.videoAI.create({
+        data: {
+            videoId: video.id,
+            status: "pending",
+            keywords: [],
+            tags: [],
+        },
+    });
+
+    await videoAIQueue.add(
+        "processVideoAI",
+        { videoId: video.id },
+        {
+            attempts: 3,
+            backoff: {
+                type: "exponential",
+                delay: 5000,
+            },
+            removeOnComplete: true,
+            removeOnFail: false,
+        }
+    );
 
     try {
         fs.existsSync(tempVideoPath) && fs.unlinkSync(tempVideoPath);

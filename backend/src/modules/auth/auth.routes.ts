@@ -5,7 +5,7 @@ import {
     verifyEmailOTP,
     login,
     forgotPassword,
-    resetUserPassword,
+    resetUserPassword
 } from "./auth.controller";
 
 const router = Router();
@@ -19,8 +19,7 @@ router.post("/reset-password", resetUserPassword);
 router.get(
     "/google",
     passport.authenticate("google", {
-        scope: ["profile", "email"],
-        session: false,
+        scope: ["profile", "email"]
     })
 );
 
@@ -28,13 +27,11 @@ router.get(
     "/google/callback",
     passport.authenticate("google", {
         session: false,
-        failureRedirect: "/login",
+        failureRedirect: `${process.env.CLIENT_URL}/login`
     }),
     (req: any, res) => {
         const token = req.user.token;
-        res.redirect(
-            `${process.env.CLIENT_URL}/oauth-success?token=${token}`
-        );
+        res.redirect(`${process.env.CLIENT_URL}/oauth-success?token=${token}`);
     }
 );
 

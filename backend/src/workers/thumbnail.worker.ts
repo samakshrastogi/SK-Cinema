@@ -1,20 +1,51 @@
-import { Worker } from "bullmq";
-import { redisConnection } from "../config/redis";
-import { processThumbnailPipeline } from "../services/thumbnail.service";
+import { Worker } from "bullmq"
+import { redisConnection } from "../config/redis"
+import { prisma } from "../config/prisma"
+import { processThumbnailPipeline } from "../services/thumbnail.service"
 
-new Worker(
+const worker = new Worker(
     "thumbnailQueue",
     async (job) => {
-        const { inputPath, tempDir, bucket, s3Key } = job.data;
+
+        const { videoId } = job.data
+
+        const video = await prisma.video.findUnique({
+            where: { id: videoId }
+        })
+
+        if (!video) {
+            throw new Error("Video not found")
+        }
 
         const result = await processThumbnailPipeline(
-            inputPath,
-            tempDir,
-            bucket,
-            s3Key
-        );
+            video.s3Key,
+            process.env.AWS_BUCKET!
+        )
 
-        return { thumbnail: result };
+        await prisma.video.update({
+            where: { id: videoId },
+            data: {
+                thumbnailKey: result
+            }
+        })
+
+        await job.updateProgress(100)
+
+        return { thumbnail: result }
+
     },
-    { connection: redisConnection }
-);
+    {
+        connection: redisConnection as any,
+        concurrency: 5
+    }
+)
+
+worker.on("completed", (job) => {
+    console.log("Thumbnail generated:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+    console.error("Thumbnail job failed:", job?.id, err)
+})
+
+export default worker
