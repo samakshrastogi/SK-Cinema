@@ -4,6 +4,7 @@ import axios from "axios"
 import { io } from "socket.io-client"
 
 import { api } from "@/api/axios"
+import AppLayout from "@/layouts/AppLayout"
 
 interface Channel {
     id: number
@@ -36,8 +37,6 @@ interface UploadItem {
     videoId?: number
 }
 
-/* ---------------- SOCKET ---------------- */
-
 const socket = io("http://localhost:5000", {
     path: "/socket.io",
     transports: ["websocket"]
@@ -67,8 +66,6 @@ const Upload = () => {
 
         socket.on("ai-progress", ({ videoId, progress }) => {
 
-            console.log("AI progress:", videoId, progress)
-
             setQueue(prev =>
                 prev.map(item =>
                     item.videoId === videoId
@@ -84,10 +81,7 @@ const Upload = () => {
             try {
 
                 const res = await api.get(`/video/${videoId}`)
-
-                const ai = res.data.videoAI
-
-                console.log("AI DATA RECEIVED:", ai)
+                const video = res.data
 
                 setQueue(prev =>
                     prev.map(item =>
@@ -97,15 +91,12 @@ const Upload = () => {
                                 status: "completed",
                                 aiProgress: 100,
 
-                                title: ai?.aiTitle ?? item.title,
-                                description: ai?.aiDescription ?? "",
+                                // AI fields from backend
+                                title: video.aiTitle ?? item.title,
+                                description: video.aiDescription ?? "",
 
-                                // combine keywords + tags
-                                tags: [
-                                    ...(ai?.tags ?? []),
-                                    ...(ai?.keywords ?? [])
-                                ].join(", ")
-
+                                // optional (if backend later returns them)
+                                tags: video.tags?.join(", ") ?? ""
                             }
                             : item
                     )
@@ -116,7 +107,6 @@ const Upload = () => {
             }
 
         })
-
         socket.on("ai-failed", ({ videoId }) => {
 
             setQueue(prev =>
@@ -326,27 +316,27 @@ const Upload = () => {
     if (loadingChannel) {
 
         return (
-            <div className="min-h-screen bg-[#0b1120] flex items-center justify-center text-white">
+            <div className="min-h-screen flex items-center justify-center text-white">
                 Loading...
             </div>
         )
 
     }
 
-    /* ---------------- RENDER ---------------- */
+    /* ---------------- UI ---------------- */
 
     return (
 
-        <div className="min-h-screen bg-[#0b1120] text-white px-6 py-10">
+        <AppLayout>
 
-            <div className="max-w-6xl mx-auto space-y-10">
+            <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
 
                 {/* HEADER */}
 
                 <div className="flex justify-between items-center">
 
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">
+                        <h1 className="text-3xl font-bold">
                             {channel?.name}
                         </h1>
 
@@ -364,13 +354,23 @@ const Upload = () => {
 
                 </div>
 
-                {/* DROP ZONE */}
+                {/* DROPZONE */}
 
                 <div
                     onClick={() => document.getElementById("fileInput")?.click()}
-                    className="border-2 border-dashed border-gray-700 hover:border-purple-500 transition rounded-xl p-14 text-center cursor-pointer bg-[#111827]"
+                    className="
+                    border-2 border-dashed border-white/20
+                    hover:border-purple-500
+                    transition
+                    rounded-2xl
+                    p-16
+                    text-center
+                    cursor-pointer
+                    bg-white/5
+                    backdrop-blur-xl
+                    "
                 >
-                    <p className="text-gray-400">
+                    <p className="text-gray-300">
                         Drag & drop videos here or click to upload
                     </p>
                 </div>
@@ -406,7 +406,7 @@ const Upload = () => {
 
                         <div
                             key={index}
-                            className="bg-[#111827] p-8 rounded-2xl shadow-xl space-y-6"
+                            className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-xl space-y-6"
                         >
 
                             {/* VIDEO + PROGRESS */}
@@ -415,7 +415,7 @@ const Upload = () => {
 
                                 <video
                                     src={item.preview}
-                                    className="w-56 h-32 object-cover rounded-xl shadow-lg"
+                                    className="w-56 h-32 object-cover rounded-xl"
                                 />
 
                                 <div className="flex-1">
@@ -432,8 +432,6 @@ const Upload = () => {
                                         />
 
                                     </div>
-
-                                    {/* AI PROGRESS */}
 
                                     {item.status === "processing" && (
 
@@ -460,7 +458,7 @@ const Upload = () => {
 
                             </div>
 
-                            {/* AI RESULT */}
+                            {/* ✅ AI RESULT (moved inside card) */}
 
                             {item.status === "completed" && (
 
@@ -470,7 +468,7 @@ const Upload = () => {
 
                                     <div className="space-y-1">
 
-                                        <label className="text-s text-gray-400">
+                                        <label className="text-sm text-gray-400">
                                             Title
                                         </label>
 
@@ -488,7 +486,7 @@ const Upload = () => {
 
                                     <div className="space-y-1">
 
-                                        <label className="text-s text-gray-400">
+                                        <label className="text-sm text-gray-400">
                                             Description
                                         </label>
 
@@ -507,11 +505,9 @@ const Upload = () => {
 
                                     <div className="space-y-2">
 
-                                        <label className="text-s text-gray-400">
+                                        <label className="text-sm text-gray-400">
                                             Keywords
                                         </label>
-
-                                        {/* TAG CHIPS */}
 
                                         <div className="flex flex-wrap gap-2">
 
@@ -531,16 +527,6 @@ const Upload = () => {
 
                                         </div>
 
-                                        {/* EDIT TAG INPUT */}
-
-                                        {/* <input
-                                            value={item.tags}
-                                            onChange={(e) =>
-                                                updateItem(index, { tags: e.target.value })
-                                            }
-                                            className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 mt-2"
-                                        /> */}
-
                                     </div>
 
                                 </div>
@@ -555,7 +541,7 @@ const Upload = () => {
 
             </div>
 
-        </div>
+        </AppLayout>
 
     )
 

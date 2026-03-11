@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/api/axios";
+import AppLayout from "@/layouts/AppLayout";
 
 interface Bucket {
     id: number;
@@ -181,230 +182,255 @@ const S3Import = () => {
     };
 
     return (
-        <div className="max-w-6xl mx-auto mt-8 px-6 space-y-8">
+        <AppLayout>
+            <div className="max-w-6xl mx-auto px-6 pt-6 pb-10 space-y-8">
 
-            {/* Header */}
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-semibold">S3 Import Manager</h1>
-
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded"
-                >
-                    + Add Bucket
-                </button>
-            </div>
-
-            {/* Bucket Selector */}
-            <div className="bg-[#0f172a] shadow rounded-xl p-6 space-y-4 border border-gray-700">
-
-                <select
-                    className="w-full px-4 py-3 rounded-xl 
-                   bg-black/50 text-white 
-                   border border-gray-700 
-                   focus:border-blue-500 
-                   outline-none"
-                    onChange={(e) =>
-                        setSelectedBucket(
-                            e.target.value ? Number(e.target.value) : null
-                        )
-                    }
-                >
-                    <option value="" className="bg-[#0f172a] text-white">
-                        Choose bucket
-                    </option>
-
-                    {buckets.map((b) => (
-                        <option
-                            key={b.id}
-                            value={b.id}
-                            className="bg-[#0f172a] text-white"
-                        >
-                            {b.name} ({b.bucketName})
-                        </option>
-                    ))}
-                </select>
-
-                <button
-                    onClick={handleScan}
-                    disabled={scanning}
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 
-                   text-white px-5 py-2 rounded-xl 
-                   hover:opacity-90 transition"
-                >
-                    {scanning ? "Scanning..." : "Scan Bucket"}
-                </button>
-            </div>
-            
-            {/* Files Section */}
-            {videoFiles.length > 0 && (
-                <div className="bg-dark shadow rounded-xl p-6 space-y-4">
-                    <div className="flex justify-between items-center">
-                        <h2 className="font-medium">
-                            Videos ({videoFiles.length})
-                        </h2>
-
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                checked={
-                                    selectedFiles.length === videoFiles.length
-                                }
-                                onChange={toggleSelectAll}
-                            />
-                            Select All
-                        </label>
-                    </div>
-
-                    <div className="max-h-96 overflow-y-auto border rounded">
-                        {Object.keys(folderMap).map((folder) => (
-                            <div key={folder} className="border-b">
-                                <div className="bg-gray-100 text-black p-2 flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={folderMap[folder].every((f) =>
-                                            selectedFiles.includes(f)
-                                        )}
-                                        onChange={() =>
-                                            toggleFolder(folder)
-                                        }
-                                    />
-                                    <span className="font-semibold">
-                                        📁 {folder}
-                                    </span>
-                                </div>
-
-                                {folderMap[folder].map((fileKey) => (
-                                    <div
-                                        key={fileKey}
-                                        className="flex items-center gap-3 p-2 pl-8"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedFiles.includes(fileKey)}
-                                            onChange={() =>
-                                                toggleFile(fileKey)
-                                            }
-                                        />
-                                        <span className="text-sm">
-                                            {fileKey.split("/").pop()}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
+                {/* Header */}
+                <div className="flex justify-between items-center">
+                    <h1 className="text-2xl font-semibold text-white">
+                        S3 Import Manager
+                    </h1>
 
                     <button
-                        onClick={handleImport}
-                        disabled={
-                            importing || selectedFiles.length === 0
-                        }
-                        className="bg-purple-600 text-white px-4 py-2 rounded"
+                        onClick={() => setShowAddModal(true)}
+                        className="bg-purple-600 hover:bg-purple-700 transition px-5 py-2 rounded-lg text-sm"
                     >
-                        {importing
-                            ? "Importing..."
-                            : `Import (${selectedFiles.length})`}
+                        + Add Bucket
                     </button>
                 </div>
-            )}
 
-            {/* Add Bucket Modal */}
-            {showAddModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
 
-                    <div className="bg-[#0f172a] border border-gray-700 rounded-2xl w-[420px] p-8 shadow-2xl relative">
+                {/* Bucket Selector */}
 
-                        {/* Close Button */}
-                        <button
-                            onClick={() => setShowAddModal(false)}
-                            className="absolute top-4 right-4 text-gray-400 hover:text-white text-lg"
-                        >
-                            ✕
-                        </button>
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-4">
 
-                        <h2 className="text-xl font-semibold text-white mb-6">
-                            Add S3 Bucket
-                        </h2>
+                    <select
+                        className="
+                        w-full px-4 py-3 rounded-xl
+                        bg-black/40
+                        border border-white/20
+                        text-white
+                        focus:border-purple-500
+                        outline-none
+                        "
+                        onChange={(e) =>
+                            setSelectedBucket(
+                                e.target.value ? Number(e.target.value) : null
+                            )
+                        }
+                    >
 
-                        <div className="space-y-4">
+                        <option value="">Choose bucket</option>
 
-                            <input
-                                placeholder="Display Name"
-                                className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
-                                value={bucketForm.name}
-                                onChange={(e) =>
-                                    setBucketForm({ ...bucketForm, name: e.target.value })
-                                }
-                            />
+                        {buckets.map((b) => (
+                            <option key={b.id} value={b.id}>
+                                {b.name} ({b.bucketName})
+                            </option>
+                        ))}
 
-                            <input
-                                placeholder="Access Key"
-                                className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
-                                value={bucketForm.accessKey}
-                                onChange={(e) =>
-                                    setBucketForm({ ...bucketForm, accessKey: e.target.value })
-                                }
-                            />
+                    </select>
 
-                            <input
-                                placeholder="Secret Key"
-                                type="password"
-                                className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
-                                value={bucketForm.secretKey}
-                                onChange={(e) =>
-                                    setBucketForm({ ...bucketForm, secretKey: e.target.value })
-                                }
-                            />
+                    <button
+                        onClick={handleScan}
+                        disabled={scanning}
+                        className="bg-green-600 hover:bg-green-700 transition px-5 py-2 rounded-lg text-sm"
+                    >
+                        {scanning ? "Scanning..." : "Scan Bucket"}
+                    </button>
 
-                            <input
-                                placeholder="Bucket Name"
-                                className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
-                                value={bucketForm.bucketName}
-                                onChange={(e) =>
-                                    setBucketForm({ ...bucketForm, bucketName: e.target.value })
-                                }
-                            />
+                </div>
 
-                            <input
-                                placeholder="Region (optional)"
-                                className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
-                                value={bucketForm.region}
-                                onChange={(e) =>
-                                    setBucketForm({ ...bucketForm, region: e.target.value })
-                                }
-                            />
 
-                            <input
-                                placeholder="Custom Endpoint (optional)"
-                                className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
-                                value={bucketForm.endpoint}
-                                onChange={(e) =>
-                                    setBucketForm({ ...bucketForm, endpoint: e.target.value })
-                                }
-                            />
+                {/* Files Section */}
 
-                            <div className="flex justify-end gap-3 pt-4">
-                                <button
-                                    onClick={() => setShowAddModal(false)}
-                                    className="px-5 py-2 rounded-xl border border-gray-600 text-gray-300 hover:bg-gray-800 transition"
-                                >
-                                    Cancel
-                                </button>
+                {videoFiles.length > 0 && (
 
-                                <button
-                                    onClick={handleAddBucket}
-                                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium hover:opacity-90 transition"
-                                >
-                                    Add Bucket
-                                </button>
-                            </div>
+                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-6">
+
+                        <div className="flex justify-between items-center">
+
+                            <h2 className="text-lg font-semibold">
+                                Videos ({videoFiles.length})
+                            </h2>
+
+                            <label className="flex items-center gap-2 text-sm">
+
+                                <input
+                                    type="checkbox"
+                                    checked={selectedFiles.length === videoFiles.length}
+                                    onChange={toggleSelectAll}
+                                />
+
+                                Select All
+
+                            </label>
 
                         </div>
+
+
+                        <div className="max-h-96 overflow-y-auto border border-white/10 rounded-xl">
+
+                            {Object.keys(folderMap).map((folder) => (
+
+                                <div key={folder} className="border-b border-white/10">
+
+                                    {/* Folder */}
+
+                                    <div className="bg-black/40 px-4 py-2 flex items-center gap-3">
+
+                                        <input
+                                            type="checkbox"
+                                            checked={folderMap[folder].every((f) =>
+                                                selectedFiles.includes(f)
+                                            )}
+                                            onChange={() => toggleFolder(folder)}
+                                        />
+
+                                        <span className="font-medium text-purple-300">
+                                            📁 {folder}
+                                        </span>
+
+                                    </div>
+
+
+                                    {/* Files */}
+
+                                    {folderMap[folder].map((fileKey) => (
+
+                                        <div
+                                            key={fileKey}
+                                            className="flex items-center gap-3 px-6 py-2 hover:bg-white/5 transition"
+                                        >
+
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedFiles.includes(fileKey)}
+                                                onChange={() => toggleFile(fileKey)}
+                                            />
+
+                                            <span className="text-sm text-gray-300">
+                                                {fileKey.split("/").pop()}
+                                            </span>
+
+                                        </div>
+
+                                    ))}
+
+                                </div>
+
+                            ))}
+
+                        </div>
+
+
+                        <button
+                            onClick={handleImport}
+                            disabled={importing || selectedFiles.length === 0}
+                            className="bg-purple-600 hover:bg-purple-700 transition px-6 py-2 rounded-lg"
+                        >
+                            {importing
+                                ? "Importing..."
+                                : `Import (${selectedFiles.length})`}
+                        </button>
+
                     </div>
-                </div>
-            )}
-        </div>
+
+                )}
+                {/* Add Bucket Modal */}
+                {showAddModal && (
+                    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                        <div className="relative w-full max-w-md bg-[#0b1120] border border-white/10 rounded-2xl p-8 shadow-2xl">
+                            {/* Close Button */}
+                            <button
+                                onClick={() => setShowAddModal(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-white text-lg"
+                            >
+                                ✕
+                            </button>
+
+                            <h2 className="text-xl font-semibold text-white mb-6">
+                                Add S3 Bucket
+                            </h2>
+
+                            <div className="space-y-4">
+
+                                <input
+                                    placeholder="Display Name"
+                                    className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
+                                    value={bucketForm.name}
+                                    onChange={(e) =>
+                                        setBucketForm({ ...bucketForm, name: e.target.value })
+                                    }
+                                />
+
+                                <input
+                                    placeholder="Access Key"
+                                    className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
+                                    value={bucketForm.accessKey}
+                                    onChange={(e) =>
+                                        setBucketForm({ ...bucketForm, accessKey: e.target.value })
+                                    }
+                                />
+
+                                <input
+                                    placeholder="Secret Key"
+                                    type="password"
+                                    className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
+                                    value={bucketForm.secretKey}
+                                    onChange={(e) =>
+                                        setBucketForm({ ...bucketForm, secretKey: e.target.value })
+                                    }
+                                />
+
+                                <input
+                                    placeholder="Bucket Name"
+                                    className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
+                                    value={bucketForm.bucketName}
+                                    onChange={(e) =>
+                                        setBucketForm({ ...bucketForm, bucketName: e.target.value })
+                                    }
+                                />
+
+                                <input
+                                    placeholder="Region (optional)"
+                                    className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
+                                    value={bucketForm.region}
+                                    onChange={(e) =>
+                                        setBucketForm({ ...bucketForm, region: e.target.value })
+                                    }
+                                />
+
+                                <input
+                                    placeholder="Custom Endpoint (optional)"
+                                    className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 text-white focus:border-blue-500 outline-none"
+                                    value={bucketForm.endpoint}
+                                    onChange={(e) =>
+                                        setBucketForm({ ...bucketForm, endpoint: e.target.value })
+                                    }
+                                />
+
+                                <div className="flex justify-end gap-3 pt-4">
+                                    <button
+                                        onClick={() => setShowAddModal(false)}
+                                        className="px-5 py-2 rounded-xl border border-gray-600 text-gray-300 hover:bg-gray-800 transition"
+                                    >
+                                        Cancel
+                                    </button>
+
+                                    <button
+                                        onClick={handleAddBucket}
+                                        className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium hover:opacity-90 transition"
+                                    >
+                                        Add Bucket
+                                    </button>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </AppLayout>
     );
 };
 

@@ -167,6 +167,7 @@ export const getAllVideos = async () => {
                     username: true,
                 },
             },
+            aiData: true
         },
         orderBy: {
             createdAt: "desc",
@@ -174,12 +175,20 @@ export const getAllVideos = async () => {
     });
 
     return videos.map((video) => ({
-        ...video,
-        size: video.size.toString(),
+        id: video.id,
+        title: video.title,
+
+        aiTitle: video.aiData?.aiTitle ?? null,
+        aiDescription: video.aiData?.aiDescription ?? null,
+
+        channel: video.channel,
+        createdAt: video.createdAt,
+
+        thumbnailKey: video.thumbnailKey,
+
         signedUrl: signCloudFrontUrl(video.s3Key),
-        thumbnailUrl: video.thumbnailKey
-            ? signCloudFrontUrl(video.thumbnailKey)
-            : null,
+
+        size: video.size.toString(),
     }));
 };
 
@@ -203,12 +212,14 @@ export const getVideoById = async (id: number) => {
     }
 
     return {
-        ...video,
-        videoAI: video.aiData,
-        size: video.size.toString(),
+        id: video.id,
+        title: video.title,
+        aiTitle: video.aiData?.aiTitle ?? null,
+        aiDescription: video.aiData?.aiDescription ?? null,
+        channel: video.channel,
+        createdAt: video.createdAt,
         signedUrl: signCloudFrontUrl(video.s3Key),
-        thumbnailUrl: video.thumbnailKey
-            ? signCloudFrontUrl(video.thumbnailKey)
-            : null,
+        thumbnailKey: video.thumbnailKey,
+        size: video.size.toString(),
     };
 };
