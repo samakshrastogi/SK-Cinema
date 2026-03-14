@@ -8,26 +8,28 @@ datasource db {
 }
 
 model User {
-  id              Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  email           String    @unique
-  username        String    @unique
-  password        String?
+  email    String @unique
+  username String @unique
+  password String?
 
-  provider        AuthProvider @default(LOCAL)
+  provider AuthProvider @default(LOCAL)
 
-  isVerified      Boolean   @default(false)
+  isVerified Boolean @default(false)
 
-  otp             String?
-  otpExpiry       DateTime?
+  otp       String?
+  otpExpiry DateTime?
 
-  resetToken      String?
-  resetTokenExp   DateTime?
+  resetToken    String?
+  resetTokenExp DateTime?
 
-  createdAt       DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  channel         Channel?
-  s3Credential    S3Credential[]
+  channel      Channel?
+  s3Credential S3Credential[]
+  videoActions VideoAction[]
+  playlists    Playlist[]
 }
 
 model Channel {
@@ -35,44 +37,59 @@ model Channel {
   name        String
   username    String   @unique
   description String?
-  userId      Int      @unique
-  user        User     @relation(fields: [userId], references: [id])
-  videos      Video[]
-  createdAt   DateTime @default(now())
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videos Video[]
+
+  createdAt DateTime @default(now())
 }
 
 model Video {
-  id            Int          @id @default(autoincrement())
-  title         String
-  s3Key         String       @unique
-  size          BigInt
-  thumbnailKey  String?
-  uploadSource  UploadSource
-  status        UploadStatus @default(UPLOADING)
-  channelId     Int
-  channel       Channel      @relation(fields: [channelId], references: [id])
-  aiData        VideoAI?
-  createdAt     DateTime     @default(now())
+  id           Int          @id @default(autoincrement())
+  title        String
+  s3Key        String       @unique
+  size         BigInt
+  thumbnailKey String?
+
+  uploadSource UploadSource
+  status       UploadStatus @default(UPLOADING)
+
+  channelId Int
+  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  aiData VideoAI?
+
+  videoActions VideoAction[]
+
+  createdAt DateTime @default(now())
+
+  @@index([channelId])
 }
 
 model S3Credential {
-  id           Int      @id @default(autoincrement())
-  name         String   // Friendly name like "Client Backup Bucket"
-  accessKey    String
-  secretKey    String
-  region       String?  // Optional (not required for custom S3)
-  endpoint     String?  // ✅ NEW: supports custom S3 endpoints
-  bucketName   String
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id])
-  createdAt    DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  name       String
+  accessKey  String
+  secretKey  String
+  region     String?
+  endpoint   String?
+  bucketName String
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model VideoAI {
-  id            Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  videoId       Int      @unique
-  video         Video    @relation(fields: [videoId], references: [id])
+  videoId Int   @unique
+  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   transcript    String?
   keywords      String[]
@@ -80,9 +97,48 @@ model VideoAI {
   aiTitle       String?
   aiDescription String?
 
-  status        String   @default("pending")
+  status String @default("pending")
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
+}
+
+model VideoAction {
+  id Int @id @default(autoincrement())
+
+  userId  Int
+  videoId Int
+
+  actionType VideoActionType
+
+  commentText String?
+
+  playlistId Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  playlist Playlist? @relation(fields: [playlistId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([videoId])
+  @@index([userId])
+}
+
+model Playlist {
+  id Int @id @default(autoincrement())
+
+  name String
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  actions VideoAction[]
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 enum UploadStatus {
@@ -99,4 +155,11 @@ enum UploadSource {
 enum AuthProvider {
   LOCAL
   GOOGLE
+}
+
+enum VideoActionType {
+  LIKE
+  DISLIKE
+  COMMENT
+  ADD_TO_PLAYLIST
 }

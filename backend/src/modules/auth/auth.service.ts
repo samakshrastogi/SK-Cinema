@@ -35,17 +35,62 @@ const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+
 const sendOTPEmail = async (email: string, otp: string) => {
     await transporter.sendMail({
         from: `"SK Cinema" <${EMAIL_USER}>`,
         to: email,
-        subject: "Your SK Cinema Verification Code",
+        subject: "🎬 Verify Your SK Cinema Account",
         html: `
-      <h3>SK Cinema Account Verification</h3>
-      <p>Your OTP is:</p>
-      <h2>${otp}</h2>
-      <p>This OTP expires in ${OTP_EXPIRY_MINUTES} minutes.</p>
-    `,
+<table width="100%" cellpadding="0" cellspacing="0" style="background:white;padding:40px 10px;font-family:Arial,Helvetica,sans-serif;">
+<tr>
+<td align="center">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#141414;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.6);">
+
+<tr>
+<td style="background:#ff1f3d;padding:20px;text-align:center;">
+<h1 style="margin:0;color:#ffffff;font-size:26px;letter-spacing:1px;">
+🎬 SK Cinema
+</h1>
+</td>
+</tr>
+
+<tr>
+<td style="padding:35px 30px;text-align:center;color:#e5e5e5;">
+
+<p style="font-size:16px;color:#cfcfcf;margin-top:0;">
+Use the verification code below to continue watching on SK Cinema.
+</p>
+
+<div style="margin:30px auto;font-size:36px;font-weight:bold;letter-spacing:8px;color:#ffffff;background:#1f1f1f;padding:16px;border-radius:10px;border:1px solid #333;max-width:260px;">
+${otp}
+</div>
+
+<p style="font-size:14px;color:#b0b0b0;">
+This code expires in <strong>${OTP_EXPIRY_MINUTES} minutes</strong>.
+</p>
+
+<p style="font-size:13px;color:#888;margin-top:20px;line-height:1.6;">
+For security reasons, never share this code with anyone.<br>
+If you didn’t request this email, you can safely ignore it.
+</p>
+
+</td>
+</tr>
+
+<tr>
+<td style="background:#0f0f0f;text-align:center;padding:18px;font-size:12px;color:#777;">
+© ${new Date().getFullYear()} SK Cinema • All rights reserved
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+`
     });
 };
 
