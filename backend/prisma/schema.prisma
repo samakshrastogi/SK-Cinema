@@ -14,6 +14,8 @@ model User {
   username String @unique
   password String?
 
+  avatarKey String?
+
   provider AuthProvider @default(LOCAL)
 
   isVerified Boolean @default(false)
@@ -26,10 +28,10 @@ model User {
 
   createdAt DateTime @default(now())
 
-  channel      Channel?
-  s3Credential S3Credential[]
-  videoActions VideoAction[]
-  playlists    Playlist[]
+  channel       Channel?
+  s3Credentials S3Credential[]
+  videoActions  VideoAction[]
+  playlists     Playlist[]
 }
 
 model Channel {
@@ -91,9 +93,11 @@ model VideoAI {
   videoId Int   @unique
   video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
-  transcript    String?
-  keywords      String[]
-  tags          String[]
+  transcript String?
+
+  keywords String[]
+  tags     String[]
+
   aiTitle       String?
   aiDescription String?
 
@@ -124,6 +128,7 @@ model VideoAction {
 
   @@index([videoId])
   @@index([userId])
+  @@index([actionType])
 }
 
 model Playlist {

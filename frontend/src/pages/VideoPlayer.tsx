@@ -177,7 +177,7 @@ const VideoPlayer = () => {
     const handleEnded = () => {
 
         if (related.length > 0) {
-            navigate(`/ video / ${related[0].id} `)
+            navigate(`/video/${related[0].id}`)
         }
 
     }
@@ -441,7 +441,7 @@ const VideoPlayer = () => {
                                 <div
                                     key={item.id}
                                     onClick={() =>
-                                        navigate(`/ video / ${item.id} `)
+                                        navigate(`/video/${item.id}`)
                                     }
                                     className="flex gap-2 cursor-pointer hover:bg-black/40 p-2 rounded-lg"
                                 >

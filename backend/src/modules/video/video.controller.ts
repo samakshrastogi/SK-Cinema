@@ -1,65 +1,74 @@
-import { Response } from "express";
+import { Response } from "express"
 import {
     generatePresignedUrl,
     completeUpload,
     scanS3Videos,
     getVideoById,
-    getAllVideos,
-} from "./video.service";
-import { prisma } from "../../config/prisma";
-import { AuthRequest } from "../../middlewares/auth.middleware";
-import { processVideoAfterUpload } from "./video-processing.service";
+    getAllVideos
+} from "./video.service"
+
+import { prisma } from "../../config/prisma"
+import { AuthRequest } from "../../middlewares/auth.middleware"
+import { processVideoAfterUpload } from "./video-processing.service"
+
+
 
 export const getPresignedUrl = async (
     req: AuthRequest,
     res: Response
 ) => {
+
     try {
+
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" })
         }
 
-        const { fileName, fileType } = req.body;
+        const { fileName, fileType } = req.body
 
         if (!fileName || !fileType) {
             return res.status(400).json({
-                message: "fileName and fileType are required",
-            });
+                message: "fileName and fileType are required"
+            })
         }
 
         const result = await generatePresignedUrl(
             req.user.id,
             fileName,
             fileType
-        );
+        )
 
-        return res.json(result);
+        return res.json(result)
 
     } catch (error: any) {
 
         return res.status(500).json({
-            message: error.message || "Failed to generate upload URL",
-        });
+            message: error.message || "Failed to generate upload URL"
+        })
 
     }
-};
+
+}
+
+
 
 export const finishUpload = async (
     req: AuthRequest,
     res: Response
 ) => {
+
     try {
 
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" })
         }
 
-        const { key, title, size } = req.body;
+        const { key, title, size } = req.body
 
         if (!key || !title || !size) {
             return res.status(400).json({
-                message: "key, title and size are required",
-            });
+                message: "key, title and size are required"
+            })
         }
 
         const video = await completeUpload(
@@ -67,81 +76,89 @@ export const finishUpload = async (
             key,
             title,
             Number(size)
-        );
+        )
 
         return res.status(201).json({
             ...video,
-            size: video.size.toString(),
-        });
+            size: video.size.toString()
+        })
 
     } catch (error: any) {
 
         return res.status(500).json({
-            message: error.message || "Failed to complete upload",
-        });
+            message: error.message || "Failed to complete upload"
+        })
 
     }
-};
+
+}
+
+
 
 export const handleScanS3 = async (
     req: AuthRequest,
     res: Response
 ) => {
+
     try {
 
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" })
         }
 
-        const summary = await scanS3Videos(req.user.id);
+        const summary = await scanS3Videos(req.user.id)
 
-        return res.json(summary);
+        return res.json(summary)
 
     } catch (error: any) {
 
         return res.status(500).json({
-            message: error.message || "Failed to scan S3",
-        });
+            message: error.message || "Failed to scan S3"
+        })
 
     }
-};
+
+}
+
+
 
 export const importSelectedVideos = async (
     req: AuthRequest,
     res: Response
 ) => {
+
     try {
 
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" })
         }
 
-        const { keys } = req.body;
+        const { keys } = req.body
 
         if (!Array.isArray(keys) || keys.length === 0) {
             return res.status(400).json({
-                message: "keys array is required",
-            });
+                message: "keys array is required"
+            })
         }
 
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
-            include: { channel: true },
-        });
+            include: { channel: true }
+        })
 
         if (!user || !user.channel) {
             return res.status(400).json({
-                message: "Channel not found",
-            });
+                message: "Channel not found"
+            })
         }
 
-        const imported: string[] = [];
+        const imported: string[] = []
 
         for (const key of keys) {
 
             const exists = await prisma.video.findUnique({
-                where: { s3Key: key },
-            });
+                where: { s3Key: key }
+            })
 
             if (!exists) {
 
@@ -152,17 +169,17 @@ export const importSelectedVideos = async (
                         size: BigInt(0),
                         uploadSource: "S3_IMPORT",
                         status: "UPLOADED",
-                        channelId: user.channel.id,
-                    },
-                });
+                        channelId: user.channel.id
+                    }
+                })
 
                 await processVideoAfterUpload(
                     video.id,
                     key,
                     user.channel.username
-                );
+                )
 
-                imported.push(key);
+                imported.push(key)
 
             }
 
@@ -170,59 +187,143 @@ export const importSelectedVideos = async (
 
         return res.json({
             importedCount: imported.length,
-            imported,
-        });
+            imported
+        })
 
     } catch (error: any) {
 
         return res.status(500).json({
-            message: error.message || "Failed to import videos",
-        });
+            message: error.message || "Failed to import videos"
+        })
 
     }
-};
+
+}
+
+
 
 export const handleGetVideos = async (
     _req: any,
     res: Response
 ) => {
+
     try {
 
-        const videos = await getAllVideos();
+        const videos = await getAllVideos()
 
         return res.json(
             videos.map((video) => ({
                 ...video,
-                size: video.size.toString(),
+                size: video.size.toString()
             }))
-        );
+        )
 
     } catch {
 
         return res.status(500).json({
-            message: "Failed to fetch videos",
-        });
+            message: "Failed to fetch videos"
+        })
 
     }
-};
+
+}
+
+
 
 export const handleGetVideoById = async (
     req: any,
     res: Response
 ) => {
+
     try {
 
-        const id = Number(req.params.id);
+        const id = Number(req.params.id)
 
-        const video = await getVideoById(id);
+        const video = await getVideoById(id)
 
-        return res.json(video);
+        return res.json(video)
 
     } catch (error: any) {
 
         return res.status(404).json({
-            message: error.message || "Video not found",
-        });
+            message: error.message || "Video not found"
+        })
 
     }
-};
+
+}
+
+
+
+/* ===============================
+   AI INSIGHTS DASHBOARD API
+================================ */
+
+export const handleGetAIInsights = async (
+    req: AuthRequest,
+    res: Response
+) => {
+
+    try {
+
+        if (!req.user) {
+            return res.status(401).json({ message: "Unauthorized" })
+        }
+
+        const aiVideos = await prisma.videoAI.findMany({
+            select: {
+                keywords: true,
+                tags: true,
+                aiTitle: true
+            }
+        })
+
+        const keywordMap: Record<string, number> = {}
+        const tagMap: Record<string, number> = {}
+        const titleMap: Record<string, number> = {}
+
+        aiVideos.forEach((video) => {
+
+            video.keywords.forEach((k) => {
+                keywordMap[k] = (keywordMap[k] || 0) + 1
+            })
+
+            video.tags.forEach((t) => {
+                tagMap[t] = (tagMap[t] || 0) + 1
+            })
+
+            if (video.aiTitle) {
+                titleMap[video.aiTitle] = (titleMap[video.aiTitle] || 0) + 1
+            }
+
+        })
+
+        const sortMap = (map: Record<string, number>) =>
+            Object.entries(map)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map((x) => x[0])
+
+        return res.json({
+
+            totalVideosProcessed: aiVideos.length,
+
+            topKeywords: sortMap(keywordMap),
+
+            topTags: sortMap(tagMap),
+
+            topAITitles: sortMap(titleMap)
+
+        })
+
+    } catch (error) {
+
+        console.error("🔥 AI Insights Error:", error)
+
+        return res.status(500).json({
+            message: "Failed to fetch AI insights"
+        })
+
+    }
+
+}

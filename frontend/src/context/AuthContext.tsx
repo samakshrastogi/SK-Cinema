@@ -9,6 +9,7 @@ interface User {
     id: number;
     email: string;
     username: string;
+    avatarUrl?: string;
 }
 
 interface AuthContextType {
@@ -17,6 +18,7 @@ interface AuthContextType {
     login: (token: string, user: User, remember?: boolean) => void;
     logout: () => void;
     setAuthFromOAuth: (token: string, user: User) => void;
+    updateUser: (user: User) => void;
     isAuthenticated: boolean;
 }
 
@@ -40,9 +42,12 @@ export const AuthProvider = ({
 }: {
     children: React.ReactNode;
 }) => {
+
+
     const [token, setToken] = useState<string | null>(
         getStoredToken()
     );
+
     const [user, setUser] = useState<User | null>(
         getStoredUser()
     );
@@ -52,6 +57,7 @@ export const AuthProvider = ({
         user: User,
         remember = false
     ) => {
+
         if (remember) {
             localStorage.setItem("token", token);
             localStorage.setItem("user", JSON.stringify(user));
@@ -62,27 +68,45 @@ export const AuthProvider = ({
 
         setToken(token);
         setUser(user);
+
     };
 
     const setAuthFromOAuth = (token: string, user: User) => {
+
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(user));
 
         setToken(token);
         setUser(user);
+
+    };
+
+    const updateUser = (updatedUser: User) => {
+
+        setUser(updatedUser);
+
+        const storage =
+            localStorage.getItem("token") ? localStorage : sessionStorage;
+
+        storage.setItem("user", JSON.stringify(updatedUser));
+
     };
 
     const logout = () => {
+
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+
         sessionStorage.removeItem("token");
         sessionStorage.removeItem("user");
 
         setToken(null);
         setUser(null);
+
     };
 
     useEffect(() => {
+
         const storedToken = getStoredToken();
         const storedUser = getStoredUser();
 
@@ -90,6 +114,7 @@ export const AuthProvider = ({
             setToken(storedToken);
             setUser(storedUser);
         }
+
     }, []);
 
     const value: AuthContextType = {
@@ -98,6 +123,7 @@ export const AuthProvider = ({
         login,
         logout,
         setAuthFromOAuth,
+        updateUser,
         isAuthenticated: !!token,
     };
 
@@ -106,14 +132,22 @@ export const AuthProvider = ({
             {children}
         </AuthContext.Provider>
     );
+    
+
 };
 
 export const useAuth = () => {
+
+
     const context = useContext(AuthContext);
+
     if (!context) {
         throw new Error(
             "useAuth must be used within AuthProvider"
         );
     }
+
     return context;
+
+
 };

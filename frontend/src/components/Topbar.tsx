@@ -1,78 +1,95 @@
-import { useEffect, useRef, useState } from "react";
-import { Search, Bell, Menu } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { useLayout } from "@/context/LayoutContext";
-import { api } from "@/api/axios";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react"
+import { Search, Bell } from "lucide-react"
+import { useAuth } from "@/context/AuthContext"
+import { useLayout } from "@/context/LayoutContext"
+import { api } from "@/api/axios"
+import { useNavigate } from "react-router-dom"
 
 interface User {
-    id: number;
-    username: string;
-    createdAt: string;
+    id: number
+    username: string
+    createdAt: string
 }
 
 const Topbar = () => {
-    const { logout } = useAuth();
-    const { sidebarOpen, toggleSidebar } = useLayout();
-    const navigate = useNavigate();
 
-    const [query, setQuery] = useState("");
-    const [user, setUser] = useState<User | null>(null);
-    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const { logout } = useAuth()
+    const { sidebarOpen } = useLayout()
+    const navigate = useNavigate()
 
-    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [query, setQuery] = useState("")
+    const [user, setUser] = useState<User | null>(null)
+    const [dropdownOpen, setDropdownOpen] = useState(false)
+
+    const dropdownRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
+
         const fetchUser = async () => {
             try {
-                const res = await api.get("/user/me");
-                const userData = res.data?.data || res.data;
 
-                if (!userData?.username) throw new Error();
+                const res = await api.get("/user/me")
 
-                setUser(userData);
+                const userData = res.data?.data?.user
+
+                if (!userData?.username) throw new Error()
+
+                setUser(userData)
+
             } catch {
-                logout();
-                navigate("/login");
-            }
-        };
 
-        fetchUser();
-    }, [logout, navigate]);
+                logout()
+                navigate("/login")
+
+            }
+        }
+
+        fetchUser()
+
+    }, [logout, navigate])
 
     useEffect(() => {
+
         const handleClickOutside = (event: MouseEvent) => {
+
             if (
                 dropdownRef.current &&
                 !dropdownRef.current.contains(event.target as Node)
             ) {
-                setDropdownOpen(false);
+                setDropdownOpen(false)
             }
-        };
 
-        document.addEventListener("mousedown", handleClickOutside);
+        }
+
+        document.addEventListener("mousedown", handleClickOutside)
 
         return () =>
-            document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+            document.removeEventListener("mousedown", handleClickOutside)
+
+    }, [])
 
     const handleLogout = () => {
-        logout();
-        navigate("/login");
-    };
+
+        logout()
+        navigate("/login")
+
+    }
 
     const getInitials = (username?: string) => {
-        if (!username) return "?";
+
+        if (!username) return "?"
 
         return username
             .split(" ")
             .map((w) => w[0])
             .join("")
             .toUpperCase()
-            .slice(0, 2);
-    };
+            .slice(0, 2)
+
+    }
 
     return (
+
         <header
             className={`
         fixed top-0 right-0 h-[64px]
@@ -83,6 +100,7 @@ const Topbar = () => {
         ${sidebarOpen ? "left-64" : "left-20"}
       `}
         >
+
             {/* Left */}
             <div className="flex items-center gap-4">
 
@@ -130,29 +148,46 @@ const Topbar = () => {
                     </div>
 
                     {dropdownOpen && user && (
+
                         <div className="absolute right-0 mt-3 w-60 bg-gray-900 border border-gray-800 rounded-xl shadow-xl p-4">
 
-                            <p className="font-semibold text-lg">{user.username}</p>
+                            <p className="font-semibold text-lg">
+                                {user.username}
+                            </p>
 
                             <p className="text-sm text-gray-400">
                                 Joined: {new Date(user.createdAt).toLocaleDateString()}
                             </p>
 
                             <button
+                                onClick={() => {
+                                    setDropdownOpen(false)
+                                    navigate("/profile")
+                                }}
+                                className="mt-4 w-full bg-purple-600 hover:bg-purple-700 transition p-2 rounded-lg text-sm"
+                            >
+                                View Profile
+                            </button>
+
+                            <button
                                 onClick={handleLogout}
-                                className="mt-4 w-full bg-red-600 hover:bg-red-700 transition p-2 rounded-lg"
+                                className="mt-2 w-full bg-red-600 hover:bg-red-700 transition p-2 rounded-lg text-sm"
                             >
                                 Logout
                             </button>
 
                         </div>
+
                     )}
 
                 </div>
 
             </div>
-        </header>
-    );
-};
 
-export default Topbar;
+        </header>
+
+    )
+
+}
+
+export default Topbar

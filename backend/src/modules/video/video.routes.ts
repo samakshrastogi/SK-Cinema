@@ -8,6 +8,7 @@ import {
     importSelectedVideos,
     handleGetVideoById,
     handleGetVideos,
+    handleGetAIInsights
 } from "./video.controller";
 
 import {
@@ -29,6 +30,8 @@ router.post("/s3/add", authenticate, addBucket);
 router.get("/s3/list", authenticate, listBuckets);
 router.get("/s3/scan/:id", authenticate, scanBucket);
 router.post("/s3/import", authenticate, importVideo);
+
+router.get("/ai-insights", authenticate, handleGetAIInsights);
 
 router.get("/list", handleGetVideos);
 router.get("/:id", handleGetVideoById);

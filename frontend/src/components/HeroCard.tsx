@@ -6,17 +6,22 @@ interface Video {
     title: string;
     aiTitle?: string;
     aiDescription?: string;
-    thumbnailKey: string;
+    thumbnailKey?: string;
 }
 
 interface Props {
-    video: Video;
+    video?: Video; // make optional
 }
 
 const HeroCard = ({ video }: Props) => {
     const navigate = useNavigate();
 
-    const thumbnail = `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${video.thumbnailKey}`;
+    // Prevent crash if video is undefined
+    if (!video) return null;
+
+    const thumbnail = video.thumbnailKey
+        ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${video.thumbnailKey}`
+        : "/placeholder.jpg";
 
     const title = video.aiTitle || video.title;
 

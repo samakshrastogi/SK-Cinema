@@ -7,7 +7,10 @@ import {
     handleAddToPlaylist,
     handleGetVideoActions,
     handleGetPlaylists,
-    handleCreatePlaylist
+    handleCreatePlaylist,
+    handleGetFavouriteVideos,
+    handleGetUserPlaylistsWithVideos,
+    handleGetUserActivity
 } from "./video-action.controller"
 
 const router = Router()
@@ -23,5 +26,11 @@ router.get("/video/:videoId", authenticate, handleGetVideoActions)
 router.get("/playlists", authenticate, handleGetPlaylists)
 
 router.post("/playlists", authenticate, handleCreatePlaylist)
+
+router.get("/favorites", authenticate, handleGetFavouriteVideos)
+
+router.get("/playlists-with-videos", authenticate, handleGetUserPlaylistsWithVideos)
+
+router.get("/activity", authenticate, handleGetUserActivity)
 
 export default router

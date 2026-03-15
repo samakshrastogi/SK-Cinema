@@ -1,23 +1,34 @@
 import {
     PutObjectCommand,
     ListObjectsV2Command
-} from "@aws-sdk/client-s3";
-import { getSignedUrl as getCFSignedUrl } from "@aws-sdk/cloudfront-signer";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { prisma } from "../../config/prisma";
-import { s3 } from "../../config/s3";
-import { processVideoAfterUpload } from "./video-processing.service";
+} from "@aws-sdk/client-s3"
+
+import { getSignedUrl as getCFSignedUrl } from "@aws-sdk/cloudfront-signer"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+
+import { prisma } from "../../config/prisma"
+import { s3 } from "../../config/s3"
+
+import { processVideoAfterUpload } from "./video-processing.service"
+
+
 
 const signCloudFrontUrl = (key: string) => {
-    const url = `https://${process.env.CLOUDFRONT_DOMAIN}/${key}`;
+
+    const encodedKey = encodeURI(key)
+
+    const url = `https://${process.env.CLOUDFRONT_DOMAIN}/${encodedKey}`
 
     return getCFSignedUrl({
         url,
         keyPairId: process.env.CLOUDFRONT_KEY_PAIR_ID!,
         privateKey: process.env.CLOUDFRONT_PRIVATE_KEY!.replace(/\\n/g, "\n"),
-        dateLessThan: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    });
-};
+        dateLessThan: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    })
+
+}
+
+
 
 export const generatePresignedUrl = async (
     userId: number,
@@ -26,33 +37,39 @@ export const generatePresignedUrl = async (
 ) => {
 
     if (!process.env.AWS_BUCKET) {
-        throw new Error("AWS_BUCKET is not configured");
+        throw new Error("AWS_BUCKET is not configured")
     }
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { channel: true },
-    });
+        include: { channel: true }
+    })
 
-    if (!user) throw new Error("User not found");
-    if (!user.channel) throw new Error("Please create a channel first");
+    if (!user) throw new Error("User not found")
+    if (!user.channel) throw new Error("Please create a channel first")
 
-    const safeFileName = fileName.replace(/\s+/g, "_");
+    const safeFileName = fileName
+        .replace(/\s+/g, "_")
+        .replace(/[^\w.\-]/g, "")
 
-    const key = `${user.channel.username}/videos/${Date.now()}_${safeFileName}`;
+    const key = `${user.channel.username}/videos/${Date.now()}_${safeFileName}`
 
     const command = new PutObjectCommand({
         Bucket: process.env.AWS_BUCKET,
         Key: key,
         ContentType: fileType,
-    });
+        CacheControl: "public, max-age=31536000"
+    })
 
     const uploadUrl = await getSignedUrl(s3, command, {
-        expiresIn: 60 * 5,
-    });
+        expiresIn: 60 * 5
+    })
 
-    return { uploadUrl, key };
-};
+    return { uploadUrl, key }
+
+}
+
+
 
 export const completeUpload = async (
     userId: number,
@@ -63,57 +80,60 @@ export const completeUpload = async (
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { channel: true },
-    });
+        include: { channel: true }
+    })
 
     if (!user || !user.channel) {
-        throw new Error("Channel not found");
+        throw new Error("Channel not found")
     }
 
     const existing = await prisma.video.findUnique({
-        where: { s3Key: key },
-    });
+        where: { s3Key: key }
+    })
 
-    if (existing) return existing;
+    if (existing) return existing
 
     const video = await prisma.video.create({
         data: {
-            title,
+            title: title.trim(),
             s3Key: key,
             size: BigInt(size),
             uploadSource: "MANUAL",
             status: "UPLOADED",
-            channelId: user.channel.id,
-        },
-    });
+            channelId: user.channel.id
+        }
+    })
 
     await processVideoAfterUpload(
         video.id,
         key,
         user.channel.username
-    );
+    )
 
-    return video;
-};
+    return video
+
+}
+
+
 
 export const scanS3Videos = async (userId: number) => {
 
     if (!process.env.AWS_BUCKET) {
-        throw new Error("AWS_BUCKET not configured");
+        throw new Error("AWS_BUCKET not configured")
     }
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { channel: true },
-    });
+        include: { channel: true }
+    })
 
-    if (!user) throw new Error("User not found");
-    if (!user.channel) throw new Error("Channel not found");
+    if (!user) throw new Error("User not found")
+    if (!user.channel) throw new Error("Channel not found")
 
-    const prefix = `${user.channel.username}/videos/`;
+    const prefix = `${user.channel.username}/videos/`
 
-    let continuationToken: string | undefined = undefined;
-    const s3Keys: string[] = [];
+    let continuationToken: string | undefined
+    const s3Keys: string[] = []
 
     do {
 
@@ -121,40 +141,45 @@ export const scanS3Videos = async (userId: number) => {
             Bucket: process.env.AWS_BUCKET,
             Prefix: prefix,
             ContinuationToken: continuationToken,
-            MaxKeys: 1000,
-        });
+            MaxKeys: 1000
+        })
 
-        const response = await s3.send(command);
+        const response = await s3.send(command)
 
         const objects =
             response.Contents?.filter(
                 (obj) => obj.Key && !obj.Key.endsWith("/")
-            ) || [];
+            ) || []
 
         objects.forEach((obj) => {
-            s3Keys.push(obj.Key!);
-        });
+            s3Keys.push(obj.Key!)
+        })
 
-        continuationToken = response.NextContinuationToken;
+        continuationToken = response.NextContinuationToken
 
-    } while (continuationToken);
+    } while (continuationToken)
 
     const dbVideos = await prisma.video.findMany({
         where: { channelId: user.channel.id },
-        select: { s3Key: true },
-    });
+        select: { s3Key: true }
+    })
 
-    const dbKeySet = new Set(dbVideos.map((v) => v.s3Key));
+    const dbKeySet = new Set(dbVideos.map((v) => v.s3Key))
 
-    const remainingVideos = s3Keys.filter((key) => !dbKeySet.has(key));
+    const remainingVideos = s3Keys.filter(
+        (key) => !dbKeySet.has(key)
+    )
 
     return {
         totalInS3: s3Keys.length,
         alreadyImported: dbVideos.length,
         remaining: remainingVideos.length,
-        remainingVideos,
-    };
-};
+        remainingVideos
+    }
+
+}
+
+
 
 export const getAllVideos = async () => {
 
@@ -164,15 +189,15 @@ export const getAllVideos = async () => {
             channel: {
                 select: {
                     name: true,
-                    username: true,
-                },
+                    username: true
+                }
             },
             aiData: true
         },
         orderBy: {
-            createdAt: "desc",
-        },
-    });
+            createdAt: "desc"
+        }
+    })
 
     return videos.map((video) => ({
         id: video.id,
@@ -188,9 +213,12 @@ export const getAllVideos = async () => {
 
         signedUrl: signCloudFrontUrl(video.s3Key),
 
-        size: video.size.toString(),
-    }));
-};
+        size: video.size.toString()
+    }))
+
+}
+
+
 
 export const getVideoById = async (id: number) => {
 
@@ -200,26 +228,32 @@ export const getVideoById = async (id: number) => {
             channel: {
                 select: {
                     name: true,
-                    username: true,
-                },
+                    username: true
+                }
             },
             aiData: true
-        },
-    });
+        }
+    })
 
     if (!video) {
-        throw new Error("Video not found");
+        throw new Error("Video not found")
     }
 
     return {
         id: video.id,
         title: video.title,
+
         aiTitle: video.aiData?.aiTitle ?? null,
         aiDescription: video.aiData?.aiDescription ?? null,
+
         channel: video.channel,
         createdAt: video.createdAt,
+
         signedUrl: signCloudFrontUrl(video.s3Key),
+
         thumbnailKey: video.thumbnailKey,
-        size: video.size.toString(),
-    };
-};
+
+        size: video.size.toString()
+    }
+
+}

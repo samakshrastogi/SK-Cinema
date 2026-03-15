@@ -1,4 +1,4 @@
-import { Request, Response } from "express"
+import { Response } from "express"
 import { prisma } from "../../config/prisma"
 import { AuthRequest } from "../../middlewares/auth.middleware"
 
@@ -12,35 +12,36 @@ export const handleReaction = async (req: AuthRequest, res: Response) => {
         }
 
         const { videoId, type } = req.body
+        const userId = req.user.id
+        const vid = Number(videoId)
 
-        const existing = await prisma.videoAction.findFirst({
+        const existingReaction = await prisma.videoAction.findFirst({
             where: {
-                userId: req.user.id,
-                videoId: Number(videoId),
+                userId,
+                videoId: vid,
                 actionType: { in: ["LIKE", "DISLIKE"] }
             }
         })
 
-        if (existing) {
-
-            if (existing.actionType === type) {
-
-                await prisma.videoAction.delete({
-                    where: { id: existing.id }
-                })
-
-                return res.json({ removed: true })
-            }
+        if (existingReaction && existingReaction.actionType === type) {
 
             await prisma.videoAction.delete({
-                where: { id: existing.id }
+                where: { id: existingReaction.id }
+            })
+
+            return res.json({ removed: true })
+        }
+
+        if (existingReaction) {
+            await prisma.videoAction.delete({
+                where: { id: existingReaction.id }
             })
         }
 
         const action = await prisma.videoAction.create({
             data: {
-                userId: req.user.id,
-                videoId: Number(videoId),
+                userId,
+                videoId: vid,
                 actionType: type
             }
         })
@@ -76,9 +77,7 @@ export const handleComment = async (req: AuthRequest, res: Response) => {
         res.json(comment)
 
     } catch {
-
         res.status(500).json({ message: "Comment failed" })
-
     }
 }
 
@@ -106,9 +105,7 @@ export const handleAddToPlaylist = async (req: AuthRequest, res: Response) => {
         res.json(action)
 
     } catch {
-
         res.status(500).json({ message: "Playlist action failed" })
-
     }
 }
 
@@ -137,9 +134,7 @@ export const handleGetPlaylists = async (
         res.json(playlists)
 
     } catch {
-
         res.status(500).json({ message: "Failed to fetch playlists" })
-
     }
 }
 
@@ -168,9 +163,7 @@ export const handleCreatePlaylist = async (
         res.json(playlist)
 
     } catch {
-
         res.status(500).json({ message: "Failed to create playlist" })
-
     }
 }
 
@@ -185,13 +178,14 @@ export const handleGetVideoActions = async (
 
         const videoId = Number(req.params.videoId)
 
-        const likes = await prisma.videoAction.count({
-            where: { videoId, actionType: "LIKE" }
-        })
-
-        const dislikes = await prisma.videoAction.count({
-            where: { videoId, actionType: "DISLIKE" }
-        })
+        const [likes, dislikes] = await Promise.all([
+            prisma.videoAction.count({
+                where: { videoId, actionType: "LIKE" }
+            }),
+            prisma.videoAction.count({
+                where: { videoId, actionType: "DISLIKE" }
+            })
+        ])
 
         const commentsRaw = await prisma.videoAction.findMany({
             where: { videoId, actionType: "COMMENT" },
@@ -237,8 +231,198 @@ export const handleGetVideoActions = async (
         })
 
     } catch {
-
         res.status(500).json({ message: "Fetch failed" })
+    }
+}
+
+export const handleGetFavouriteVideos = async (
+    req: AuthRequest,
+    res: Response
+) => {
+    try {
+
+        if (!req.user) {
+            return res.status(401).json({ message: "Unauthorized" })
+        }
+
+        const likes = await prisma.videoAction.findMany({
+            where: {
+                userId: req.user.id,
+                actionType: "LIKE"
+            },
+            include: {
+                video: {
+                    include: {
+                        aiData: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: "desc"
+            }
+        })
+
+        const videos = likes
+            .map((l) => l.video)
+            .filter((v) => v !== null)
+            .map((video) => ({
+                id: video.id,
+                title: video.title,
+                aiTitle: video.aiData?.aiTitle ?? null,
+                thumbnailKey: video.thumbnailKey,
+                size: Number(video.size),
+                createdAt: video.createdAt
+            }))
+
+        res.json(videos)
+
+    } catch (error) {
+
+        console.error("🔥 Favourite API Error:", error)
+
+        res.status(500).json({
+            message: "Failed to fetch favourite videos"
+        })
+    }
+}
+
+
+export const handleGetUserPlaylistsWithVideos = async (
+    req: AuthRequest,
+    res: Response
+) => {
+
+    try {
+
+        if (!req.user) {
+            return res.status(401).json({ message: "Unauthorized" })
+        }
+
+        const playlists = await prisma.playlist.findMany({
+            where: {
+                userId: req.user.id
+            },
+            include: {
+                actions: {
+                    where: {
+                        actionType: "ADD_TO_PLAYLIST"
+                    },
+                    include: {
+                        video: {
+                            include: {
+                                aiData: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        createdAt: "desc"
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: "desc"
+            }
+        })
+
+        const formatted = playlists.map((playlist) => ({
+
+            id: playlist.id,
+            name: playlist.name,
+            createdAt: playlist.createdAt,
+
+            videos: playlist.actions
+                .map((action) => action.video)
+                .filter((v) => v !== null)
+                .map((video) => ({
+                    id: video.id,
+                    title: video.title,
+                    aiTitle: video.aiData?.aiTitle ?? null,
+                    thumbnailKey: video.thumbnailKey,
+                    size: Number(video.size),
+                    createdAt: video.createdAt
+                }))
+
+        }))
+
+        res.json(formatted)
+
+    } catch (error) {
+
+        console.error("🔥 Playlist API Error:", error)
+
+        res.status(500).json({
+            message: "Failed to fetch playlists"
+        })
 
     }
+
+}
+
+export const handleGetUserActivity = async (
+    req: AuthRequest,
+    res: Response
+) => {
+
+    try {
+
+        if (!req.user) {
+            return res.status(401).json({ message: "Unauthorized" })
+        }
+
+        const actions = await prisma.videoAction.findMany({
+            where: {
+                userId: req.user.id
+            },
+            include: {
+                video: {
+                    include: {
+                        aiData: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: "desc"
+            },
+            take: 20
+        })
+
+        const activity = actions
+            .filter((a) => a.video !== null)
+            .map((a) => {
+
+                let type = ""
+                let title = a.video?.title || "Video"
+
+                if (a.actionType === "LIKE") {
+                    type = "Liked"
+                }
+
+                if (a.actionType === "COMMENT") {
+                    type = "Commented"
+                }
+
+                if (a.actionType === "ADD_TO_PLAYLIST") {
+                    type = "Added to Playlist"
+                }
+
+                return {
+                    type,
+                    title,
+                    createdAt: a.createdAt
+                }
+
+            })
+
+        res.json(activity)
+
+    } catch (error) {
+
+        console.error("🔥 Activity API Error:", error)
+
+        res.status(500).json({
+            message: "Failed to fetch activity"
+        })
+
+    }
+
 }

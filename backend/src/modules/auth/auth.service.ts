@@ -1,3 +1,4 @@
+
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -7,10 +8,10 @@ import { prisma } from "../../config/prisma";
 const JWT_SECRET = process.env.JWT_SECRET as string;
 const EMAIL_USER = process.env.EMAIL_USER as string;
 const EMAIL_PASS = process.env.EMAIL_PASS as string;
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 if (!JWT_SECRET) throw new Error("JWT_SECRET not defined");
-if (!EMAIL_USER || !EMAIL_PASS)
-    throw new Error("Email credentials missing in .env");
+if (!EMAIL_USER || !EMAIL_PASS) throw new Error("Email credentials missing");
 
 const SALT_ROUNDS = 12;
 const OTP_EXPIRY_MINUTES = 10;
@@ -23,101 +24,159 @@ class AuthError extends Error {
     }
 }
 
+/* ---------------- EMAIL TRANSPORT ---------------- */
+
 const transporter = nodemailer.createTransport({
     service: "gmail",
-    auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS,
-    },
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
 });
 
-const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+/* ---------------- EMAIL TEMPLATE ---------------- */
+
+const renderEmailLayout = (title: string, body: string, button?: { text: string; link: string }) => {
+    const buttonHTML = button
+        ? `
+      <tr>
+        <td align="center" style="padding-top:24px;">
+          <a href="${button.link}" target="_blank"
+          style="background:#2563eb;color:#fff;text-decoration:none;
+          padding:12px 28px;border-radius:8px;font-weight:600;
+          font-size:14px;display:inline-block;">
+            ${button.text}
+          </a>
+        </td>
+      </tr>`
+        : "";
+
+    return `
+  <table width="100%" cellpadding="0" cellspacing="0"
+  style="background:#f3f6fb;padding:40px 10px;
+  font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;">
+  <tr>
+  <td align="center">
+
+  <table width="100%" cellpadding="0" cellspacing="0"
+  style="max-width:560px;background:#fff;border-radius:16px;
+  overflow:hidden;border:1px solid #e6e8ef;
+  box-shadow:0 12px 30px rgba(0,0,0,0.08);">
+
+  <tr>
+  <td style="background:#2563eb;padding:22px;text-align:center;">
+  <span style="font-size:22px;font-weight:700;color:#fff;">
+  🎬 SK Cinema
+  </span>
+  </td>
+  </tr>
+
+  <tr>
+  <td style="padding:40px 36px;text-align:center;color:#1f2937;">
+
+  <h2 style="margin-top:0;font-size:22px;font-weight:600;">
+  ${title}
+  </h2>
+
+  ${body}
+
+  ${buttonHTML}
+
+  <p style="margin-top:30px;font-size:13px;color:#9ca3af;">
+  For security reasons, never share this email with anyone.<br/>
+  If you didn’t request this email, you can safely ignore it.
+  </p>
+
+  </td>
+  </tr>
+
+  <tr>
+  <td style="background:#fafafa;padding:18px;text-align:center;
+  border-top:1px solid #eee;font-size:12px;color:#9ca3af;">
+  © ${new Date().getFullYear()} SK Cinema. All rights reserved.
+  </td>
+  </tr>
+
+  </table>
+  </td>
+  </tr>
+  </table>`;
 };
 
+/* ---------------- UTILITIES ---------------- */
+
+const generateOTP = () =>
+    Math.floor(100000 + Math.random() * 900000).toString();
+
+/* ---------------- EMAIL SENDERS ---------------- */
 
 const sendOTPEmail = async (email: string, otp: string) => {
+    const body = `
+  <p style="font-size:15px;color:#6b7280;">
+  Enter the verification code below to verify your SK Cinema account.
+  </p>
+
+  <div style="margin:32px auto;font-size:40px;font-weight:700;
+  letter-spacing:12px;color:#111827;background:#f8fafc;
+  border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;
+  max-width:300px;">
+  ${otp}
+  </div>
+
+  <p style="font-size:14px;color:#6b7280;">
+  This code expires in <strong>${OTP_EXPIRY_MINUTES} minutes</strong>.
+  </p>
+  `;
+
     await transporter.sendMail({
         from: `"SK Cinema" <${EMAIL_USER}>`,
         to: email,
-        subject: "🎬 Verify Your SK Cinema Account",
-        html: `
-<table width="100%" cellpadding="0" cellspacing="0" style="background:white;padding:40px 10px;font-family:Arial,Helvetica,sans-serif;">
-<tr>
-<td align="center">
-
-<table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#141414;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.6);">
-
-<tr>
-<td style="background:#ff1f3d;padding:20px;text-align:center;">
-<h1 style="margin:0;color:#ffffff;font-size:26px;letter-spacing:1px;">
-🎬 SK Cinema
-</h1>
-</td>
-</tr>
-
-<tr>
-<td style="padding:35px 30px;text-align:center;color:#e5e5e5;">
-
-<p style="font-size:16px;color:#cfcfcf;margin-top:0;">
-Use the verification code below to continue watching on SK Cinema.
-</p>
-
-<div style="margin:30px auto;font-size:36px;font-weight:bold;letter-spacing:8px;color:#ffffff;background:#1f1f1f;padding:16px;border-radius:10px;border:1px solid #333;max-width:260px;">
-${otp}
-</div>
-
-<p style="font-size:14px;color:#b0b0b0;">
-This code expires in <strong>${OTP_EXPIRY_MINUTES} minutes</strong>.
-</p>
-
-<p style="font-size:13px;color:#888;margin-top:20px;line-height:1.6;">
-For security reasons, never share this code with anyone.<br>
-If you didn’t request this email, you can safely ignore it.
-</p>
-
-</td>
-</tr>
-
-<tr>
-<td style="background:#0f0f0f;text-align:center;padding:18px;font-size:12px;color:#777;">
-© ${new Date().getFullYear()} SK Cinema • All rights reserved
-</td>
-</tr>
-
-</table>
-
-</td>
-</tr>
-</table>
-`
+        subject: "Verify your SK Cinema account",
+        html: renderEmailLayout("Verify your account", body, {
+            text: "Open SK Cinema",
+            link: CLIENT_URL,
+        }),
     });
 };
+
+const sendResetEmail = async (email: string, resetLink: string) => {
+    const body = `
+  <p style="font-size:15px;color:#6b7280;">
+  Click the button below to reset your password.
+  </p>
+
+  <p style="font-size:14px;color:#6b7280;">
+  This reset link expires in <strong>1 hour</strong>.
+  </p>
+  `;
+
+    await transporter.sendMail({
+        from: `"SK Cinema" <${EMAIL_USER}>`,
+        to: email,
+        subject: "Reset your SK Cinema password",
+        html: renderEmailLayout("Reset your password", body, {
+            text: "Reset Password",
+            link: resetLink,
+        }),
+    });
+};
+
+/* ---------------- AUTH SERVICES ---------------- */
 
 export const registerUser = async (
     email: string,
     password: string,
     confirmPassword: string
 ) => {
-    if (!email || !password || !confirmPassword) {
-        throw new AuthError("All fields are required", 400);
-    }
+    if (!email || !password || !confirmPassword)
+        throw new AuthError("All fields are required");
 
-    if (password !== confirmPassword) {
-        throw new AuthError("Passwords do not match", 400);
-    }
+    if (password !== confirmPassword)
+        throw new AuthError("Passwords do not match");
 
-    if (password.length < 6) {
-        throw new AuthError("Password must be at least 6 characters", 400);
-    }
+    if (password.length < 6)
+        throw new AuthError("Password must be at least 6 characters");
 
-    const existingUser = await prisma.user.findUnique({
-        where: { email },
-    });
+    const existingUser = await prisma.user.findUnique({ where: { email } });
 
-    if (existingUser) {
-        throw new AuthError("Email already registered", 409);
-    }
+    if (existingUser) throw new AuthError("Email already registered", 409);
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     const otp = generateOTP();
@@ -129,46 +188,29 @@ export const registerUser = async (
             password: hashedPassword,
             provider: "LOCAL",
             otp,
-            otpExpiry: new Date(
-                Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000
-            ),
+            otpExpiry: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
         },
     });
 
     await sendOTPEmail(email, otp);
 
-    return {
-        message: "OTP sent to your email. Please verify your account.",
-    };
+    return { message: "OTP sent to your email." };
 };
 
 export const verifyOTP = async (email: string, otp: string) => {
-    const user = await prisma.user.findUnique({
-        where: { email },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) throw new AuthError("User not found", 404);
+    if (user.isVerified) throw new AuthError("Account already verified");
 
-    if (user.isVerified)
-        throw new AuthError("Account already verified", 400);
-
-    if (!user.otp || !user.otpExpiry)
-        throw new AuthError("Invalid OTP", 400);
-
-    if (user.otp !== otp)
-        throw new AuthError("Incorrect OTP", 400);
-
-    if (user.otpExpiry < new Date())
-        throw new AuthError("OTP expired", 400);
+    if (!user.otp || !user.otpExpiry) throw new AuthError("Invalid OTP");
+    if (user.otp !== otp) throw new AuthError("Incorrect OTP");
+    if (user.otpExpiry < new Date()) throw new AuthError("OTP expired");
 
     await prisma.$transaction(async (tx) => {
         await tx.user.update({
             where: { id: user.id },
-            data: {
-                isVerified: true,
-                otp: null,
-                otpExpiry: null,
-            },
+            data: { isVerified: true, otp: null, otpExpiry: null },
         });
 
         await tx.channel.create({
@@ -188,21 +230,17 @@ export const loginUser = async (
     password: string,
     remember = false
 ) => {
-    const user = await prisma.user.findUnique({
-        where: { email },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user || user.provider !== "LOCAL") {
+    if (!user || user.provider !== "LOCAL")
         throw new AuthError("Invalid credentials", 401);
-    }
 
-    if (!user.isVerified) {
+    if (!user.isVerified)
         throw new AuthError("Please verify your email first", 403);
-    }
 
-    const isMatch = await bcrypt.compare(password, user.password!);
+    const match = await bcrypt.compare(password, user.password!);
 
-    if (!isMatch) throw new AuthError("Invalid credentials", 401);
+    if (!match) throw new AuthError("Invalid credentials", 401);
 
     const token = jwt.sign(
         { sub: user.id, email: user.email },
@@ -212,46 +250,26 @@ export const loginUser = async (
 
     return {
         token,
-        user: {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-        },
+        user: { id: user.id, email: user.email, username: user.username },
     };
 };
 
 export const generateResetToken = async (email: string) => {
-    const user = await prisma.user.findUnique({
-        where: { email },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) throw new AuthError("User not found", 404);
 
     const resetToken = crypto.randomBytes(32).toString("hex");
-
     const expiry = new Date(Date.now() + 60 * 60 * 1000);
 
     await prisma.user.update({
         where: { id: user.id },
-        data: {
-            resetToken,
-            resetTokenExp: expiry,
-        },
+        data: { resetToken, resetTokenExp: expiry },
     });
 
-    const resetLink = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
+    const resetLink = `${CLIENT_URL}/reset-password?token=${resetToken}`;
 
-    await transporter.sendMail({
-        from: `"SK Cinema" <${EMAIL_USER}>`,
-        to: email,
-        subject: "Reset Your SK Cinema Password",
-        html: `
-          <h3>Password Reset</h3>
-          <p>Click the link below to reset your password:</p>
-          <a href="${resetLink}">${resetLink}</a>
-          <p>This link expires in 1 hour.</p>
-        `,
-    });
+    await sendResetEmail(email, resetLink);
 
     return { message: "Reset instructions sent to your email" };
 };
@@ -264,34 +282,20 @@ export const resetPassword = async (
         where: { resetToken: token },
     });
 
-    if (!user) {
-        throw new AuthError("Invalid reset token", 400);
-    }
+    if (!user || !user.resetTokenExp)
+        throw new AuthError("Invalid or expired reset token");
 
-    if (!user.resetTokenExp) {
-        throw new AuthError("Reset token expired", 400);
-    }
+    if (new Date(user.resetTokenExp).getTime() <= Date.now())
+        throw new AuthError("Reset token expired");
 
-    const now = Date.now();
-    const expiry = new Date(user.resetTokenExp).getTime();
-
-    if (expiry <= now) {
-        throw new AuthError("Reset token expired", 400);
-    }
-
-    if (!newPassword || newPassword.length < 6) {
-        throw new AuthError("Password must be at least 6 characters", 400);
-    }
+    if (!newPassword || newPassword.length < 6)
+        throw new AuthError("Password must be at least 6 characters");
 
     const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
     await prisma.user.update({
         where: { id: user.id },
-        data: {
-            password: hashedPassword,
-            resetToken: null,
-            resetTokenExp: null,
-        },
+        data: { password: hashedPassword, resetToken: null, resetTokenExp: null },
     });
 
     return { message: "Password reset successful" };
