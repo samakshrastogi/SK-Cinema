@@ -1,20 +1,29 @@
-import { Response } from "express";
+import { Response } from "express"
+import { AuthRequest } from "../../middlewares/auth.middleware"
 import {
     createChannel,
-    getMyChannel,
-} from "./channel.service";
+    getMyChannel
+} from "./channel.service"
 
 export const handleCreateChannel = async (
-    req: any,
+    req: AuthRequest,
     res: Response
 ) => {
     try {
-        const { name, username, description } = req.body;
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
+        }
+
+        const { name, username, description } = req.body
 
         if (!name || !username) {
             return res.status(400).json({
-                message: "Channel name and username are required",
-            });
+                success: false,
+                message: "Channel name and username are required"
+            })
         }
 
         const channel = await createChannel(
@@ -22,34 +31,53 @@ export const handleCreateChannel = async (
             name,
             username,
             description
-        );
+        )
 
-        res.status(201).json(channel);
+        return res.status(201).json({
+            success: true,
+            data: channel
+        })
     } catch (error: any) {
-        console.error("Create channel error:", error);
+        console.error("Create channel error:", error)
 
-        res.status(400).json({
-            message: error.message || "Failed to create channel",
-        });
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Failed to create channel"
+        })
     }
-};
+}
 
 export const handleGetMyChannel = async (
-    req: any,
+    req: AuthRequest,
     res: Response
 ) => {
     try {
-        const channel = await getMyChannel(req.user.id);
-
-        if (!channel) {
-            return res.status(200).json(null);
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
 
-        res.json(channel);
+        const channel = await getMyChannel(req.user.id)
+
+        if (!channel) {
+            return res.status(200).json({
+                success: true,
+                data: null
+            })
+        }
+
+        return res.json({
+            success: true,
+            data: channel
+        })
     } catch (error) {
-        console.error("Get channel error:", error);
-        res.status(500).json({
-            message: "Failed to fetch channel",
-        });
+        console.error("Get channel error:", error)
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch channel"
+        })
     }
-};
+}

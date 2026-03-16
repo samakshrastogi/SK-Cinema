@@ -1,17 +1,17 @@
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { Request, Response, NextFunction } from "express"
+import jwt from "jsonwebtoken"
 
-const JWT_SECRET = process.env.JWT_SECRET as string;
+const JWT_SECRET = process.env.JWT_SECRET as string
 
 if (!JWT_SECRET) {
-    throw new Error("JWT_SECRET not defined in .env");
+    throw new Error("JWT_SECRET not defined")
 }
 
 export interface AuthRequest extends Request {
     user?: {
-        id: number;
-        email: string;
-    };
+        id: number
+        email: string
+    }
 }
 
 export const authenticate = (
@@ -19,33 +19,40 @@ export const authenticate = (
     res: Response,
     next: NextFunction
 ) => {
-    const authHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!authHeader) {
         return res.status(401).json({
             success: false,
-            message: "Unauthorized - No token provided",
-        });
+            message: "Unauthorized"
+        })
     }
 
-    const token = authHeader.split(" ")[1];
+    const [scheme, token] = authHeader.split(" ")
+
+    if (scheme !== "Bearer" || !token) {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid authorization format"
+        })
+    }
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as {
-            sub: number;
-            email: string;
-        };
+            sub: number
+            email: string
+        }
 
         req.user = {
             id: decoded.sub,
-            email: decoded.email,
-        };
+            email: decoded.email
+        }
 
-        next();
-    } catch (error) {
+        next()
+    } catch {
         return res.status(401).json({
             success: false,
-            message: "Invalid or expired token",
-        });
+            message: "Invalid or expired token"
+        })
     }
-};
+}

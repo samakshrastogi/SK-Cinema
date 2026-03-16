@@ -11,23 +11,23 @@ import { prisma } from "../../config/prisma"
 import { AuthRequest } from "../../middlewares/auth.middleware"
 import { processVideoAfterUpload } from "./video-processing.service"
 
-
-
 export const getPresignedUrl = async (
     req: AuthRequest,
     res: Response
 ) => {
-
     try {
-
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
 
         const { fileName, fileType } = req.body
 
         if (!fileName || !fileType) {
             return res.status(400).json({
+                success: false,
                 message: "fileName and fileType are required"
             })
         }
@@ -38,35 +38,35 @@ export const getPresignedUrl = async (
             fileType
         )
 
-        return res.json(result)
-
+        return res.json({
+            success: true,
+            data: result
+        })
     } catch (error: any) {
-
         return res.status(500).json({
+            success: false,
             message: error.message || "Failed to generate upload URL"
         })
-
     }
-
 }
-
-
 
 export const finishUpload = async (
     req: AuthRequest,
     res: Response
 ) => {
-
     try {
-
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
 
         const { key, title, size } = req.body
 
         if (!key || !title || !size) {
             return res.status(400).json({
+                success: false,
                 message: "key, title and size are required"
             })
         }
@@ -79,64 +79,63 @@ export const finishUpload = async (
         )
 
         return res.status(201).json({
-            ...video,
-            size: video.size.toString()
+            success: true,
+            data: {
+                ...video,
+                size: video.size.toString()
+            }
         })
-
     } catch (error: any) {
-
         return res.status(500).json({
+            success: false,
             message: error.message || "Failed to complete upload"
         })
-
     }
-
 }
-
-
 
 export const handleScanS3 = async (
     req: AuthRequest,
     res: Response
 ) => {
-
     try {
-
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
 
         const summary = await scanS3Videos(req.user.id)
 
-        return res.json(summary)
-
+        return res.json({
+            success: true,
+            data: summary
+        })
     } catch (error: any) {
-
         return res.status(500).json({
+            success: false,
             message: error.message || "Failed to scan S3"
         })
-
     }
-
 }
-
-
 
 export const importSelectedVideos = async (
     req: AuthRequest,
     res: Response
 ) => {
-
     try {
-
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
 
         const { keys } = req.body
 
         if (!Array.isArray(keys) || keys.length === 0) {
             return res.status(400).json({
+                success: false,
                 message: "keys array is required"
             })
         }
@@ -146,8 +145,9 @@ export const importSelectedVideos = async (
             include: { channel: true }
         })
 
-        if (!user || !user.channel) {
+        if (!user?.channel) {
             return res.status(400).json({
+                success: false,
                 message: "Channel not found"
             })
         }
@@ -155,13 +155,11 @@ export const importSelectedVideos = async (
         const imported: string[] = []
 
         for (const key of keys) {
-
             const exists = await prisma.video.findUnique({
                 where: { s3Key: key }
             })
 
             if (!exists) {
-
                 const video = await prisma.video.create({
                     data: {
                         title: key.split("/").pop() || "Untitled",
@@ -180,72 +178,71 @@ export const importSelectedVideos = async (
                 )
 
                 imported.push(key)
-
             }
-
         }
 
         return res.json({
+            success: true,
             importedCount: imported.length,
             imported
         })
-
     } catch (error: any) {
-
         return res.status(500).json({
+            success: false,
             message: error.message || "Failed to import videos"
         })
-
     }
-
 }
 
-
-
 export const handleGetVideos = async (
-    _req: any,
+    _req: AuthRequest,
     res: Response
 ) => {
-
     try {
-
         const videos = await getAllVideos()
 
-        return res.json(
-            videos.map((video) => ({
+        return res.json({
+            success: true,
+            data: videos.map((video) => ({
                 ...video,
                 size: video.size.toString()
             }))
-        )
-
+        })
     } catch {
-
         return res.status(500).json({
+            success: false,
             message: "Failed to fetch videos"
         })
-
     }
-
 }
 
-
-
 export const handleGetVideoById = async (
-    req: any,
+    req: AuthRequest,
     res: Response
 ) => {
 
-    try {
+    const id = Number(req.params.id)
 
-        const id = Number(req.params.id)
+    if (!id || isNaN(id)) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid video id"
+        })
+    }
+
+    try {
 
         const video = await getVideoById(id)
 
-        return res.json(video)
+        return res.json({
+            success: true,
+            data: video
+        })
 
     } catch (error: any) {
 
         return res.status(404).json({
+            success: false,
             message: error.message || "Video not found"
         })
 
@@ -253,21 +250,16 @@ export const handleGetVideoById = async (
 
 }
 
-
-
-/* ===============================
-   AI INSIGHTS DASHBOARD API
-================================ */
-
 export const handleGetAIInsights = async (
     req: AuthRequest,
     res: Response
 ) => {
-
     try {
-
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
 
         const aiVideos = await prisma.videoAI.findMany({
@@ -283,7 +275,6 @@ export const handleGetAIInsights = async (
         const titleMap: Record<string, number> = {}
 
         aiVideos.forEach((video) => {
-
             video.keywords.forEach((k) => {
                 keywordMap[k] = (keywordMap[k] || 0) + 1
             })
@@ -293,9 +284,9 @@ export const handleGetAIInsights = async (
             })
 
             if (video.aiTitle) {
-                titleMap[video.aiTitle] = (titleMap[video.aiTitle] || 0) + 1
+                titleMap[video.aiTitle] =
+                    (titleMap[video.aiTitle] || 0) + 1
             }
-
         })
 
         const sortMap = (map: Record<string, number>) =>
@@ -305,25 +296,20 @@ export const handleGetAIInsights = async (
                 .map((x) => x[0])
 
         return res.json({
-
-            totalVideosProcessed: aiVideos.length,
-
-            topKeywords: sortMap(keywordMap),
-
-            topTags: sortMap(tagMap),
-
-            topAITitles: sortMap(titleMap)
-
+            success: true,
+            data: {
+                totalVideosProcessed: aiVideos.length,
+                topKeywords: sortMap(keywordMap),
+                topTags: sortMap(tagMap),
+                topAITitles: sortMap(titleMap)
+            }
         })
-
     } catch (error) {
-
-        console.error("🔥 AI Insights Error:", error)
+        console.error("AI Insights Error:", error)
 
         return res.status(500).json({
+            success: false,
             message: "Failed to fetch AI insights"
         })
-
     }
-
 }

@@ -1,5 +1,5 @@
-import { Router } from "express";
-import { authenticate } from "../../middlewares/auth.middleware";
+import { Router } from "express"
+import { authenticate } from "../../middlewares/auth.middleware"
 
 import {
     getPresignedUrl,
@@ -9,31 +9,31 @@ import {
     handleGetVideoById,
     handleGetVideos,
     handleGetAIInsights
-} from "./video.controller";
+} from "./video.controller"
 
 import {
     addBucket,
     scanBucket,
     importVideo,
-    listBuckets,
-} from "./s3.controller";
+    listBuckets
+} from "./s3.controller"
 
-const router = Router();
+const router = Router()
 
-router.post("/presign", authenticate, getPresignedUrl);
-router.post("/complete", authenticate, finishUpload);
+router.post("/upload/presign", authenticate, getPresignedUrl)
+router.post("/upload/complete", authenticate, finishUpload)
 
-router.get("/scan", authenticate, handleScanS3);
-router.post("/import", authenticate, importSelectedVideos);
+router.get("/scan", authenticate, handleScanS3)
+router.post("/import", authenticate, importSelectedVideos)
 
-router.post("/s3/add", authenticate, addBucket);
-router.get("/s3/list", authenticate, listBuckets);
-router.get("/s3/scan/:id", authenticate, scanBucket);
-router.post("/s3/import", authenticate, importVideo);
+router.post("/s3/buckets", authenticate, addBucket)
+router.get("/s3/buckets", authenticate, listBuckets)
+router.get("/s3/buckets/:id/scan", authenticate, scanBucket)
+router.post("/s3/import", authenticate, importVideo)
 
-router.get("/ai-insights", authenticate, handleGetAIInsights);
+router.get("/ai-insights", authenticate, handleGetAIInsights)
 
-router.get("/list", handleGetVideos);
-router.get("/:id", handleGetVideoById);
+router.get("/", handleGetVideos)
+router.get("/:id", handleGetVideoById)
 
-export default router;
+export default router

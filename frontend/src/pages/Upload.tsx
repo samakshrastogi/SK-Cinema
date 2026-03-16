@@ -78,8 +78,9 @@ const Upload = () => {
 
         socket.on("ai-completed", async ({ videoId }) => {
 
-            try {
+            if (!videoId) return
 
+            try {
                 const res = await api.get(`/video/${videoId}`)
                 const video = res.data
 
@@ -138,7 +139,7 @@ const Upload = () => {
             try {
 
                 const res = await api.get("/channel/me")
-                setChannel(res.data)
+                setChannel(res.data.data)
 
             } finally {
 

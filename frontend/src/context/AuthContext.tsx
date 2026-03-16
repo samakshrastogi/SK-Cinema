@@ -9,6 +9,7 @@ interface User {
     id: number;
     email: string;
     username: string;
+    name?: string;
     avatarUrl?: string;
 }
 
@@ -31,10 +32,19 @@ const getStoredToken = () =>
     sessionStorage.getItem("token");
 
 const getStoredUser = () => {
-    const stored =
-        localStorage.getItem("user") ||
-        sessionStorage.getItem("user");
-    return stored ? JSON.parse(stored) : null;
+    try {
+        const stored =
+            localStorage.getItem("user") ||
+            sessionStorage.getItem("user");
+
+        if (!stored || stored === "undefined") {
+            return null;
+        }
+
+        return JSON.parse(stored);
+    } catch {
+        return null;
+    }
 };
 
 export const AuthProvider = ({

@@ -8,15 +8,16 @@ interface User {
     id: number
     email: string
     username: string
-    provider: string
-    createdAt: string
+    name?: string
+    avatarUrl?: string
     avatarKey?: string
+    createdAt?: string
 }
 
 interface Channel {
     id: number
-    name: string
     username: string
+    name: string
     description?: string
 }
 
@@ -51,66 +52,64 @@ const ProfilePage = () => {
     const [history, setHistory] = useState<Video[]>([])
     const [activity, setActivity] = useState<Activity[]>([])
     const [aiInsights, setAiInsights] = useState<string[]>([])
+
     const [loading, setLoading] = useState(true)
 
     const [editOpen, setEditOpen] = useState(false)
-    const [username, setUsername] = useState("")
+
+    const [name, setName] = useState("")
     const [channelName, setChannelName] = useState("")
     const [description, setDescription] = useState("")
 
-    useEffect(() => {
+    /* ---------------- FETCH PROFILE ---------------- */
+    const fetchProfile = async () => {
 
-        const fetchProfile = async () => {
+        try {
 
-            try {
+            const res = await api.get("/user/me")
+            const data = res.data.data
 
-                const res = await api.get("/user/me")
-                const data = res.data.data
+            setUser(data.user)
+            updateUser(data.user)
+            setChannel(data.channel)
+            setStats(data.stats)
+            setVideos(data.uploadedVideos)
+            setHistory(data.history)
+            setActivity(data.activity || [])
+            setAiInsights(data.aiInsights || [])
 
-                setUser(data.user)
-                setChannel(data.channel)
-                setStats(data.stats)
-                setVideos(data.uploadedVideos)
-                setHistory(data.history)
-                setActivity(data.activity || [])
-                setAiInsights(data.aiInsights || [])
+            setName(data.user?.name || "")
+            setChannelName(data.channel?.name || "")
+            setDescription(data.channel?.description || "")
 
-                setUsername(data.user.username)
-                setChannelName(data.channel?.name || "")
-                setDescription(data.channel?.description || "")
+        } catch (error) {
 
-            } catch (error) {
+            console.error("Profile fetch error:", error)
 
-                console.error("Profile fetch error:", error)
+        } finally {
 
-            } finally {
-
-                setLoading(false)
-
-            }
+            setLoading(false)
 
         }
 
+    }
+    useEffect(() => {
         fetchProfile()
-
     }, [])
+
+    /* ---------------- SAVE PROFILE ---------------- */
 
     const saveProfile = async () => {
 
         try {
 
-            const res = await api.patch("/user/profile", {
-                username,
+            await api.patch("/user/profile", {
+                name,
                 channelName,
                 description
             })
 
-            const updated = res.data
-
-            setUser(updated.user)
-            setChannel(updated.channel)
-
-            updateUser(updated.user)
+            await fetchProfile()
 
             setEditOpen(false)
 
@@ -121,6 +120,8 @@ const ProfilePage = () => {
         }
 
     }
+
+    /* ---------------- AVATAR UPLOAD ---------------- */
 
     const uploadAvatar = async (file: File) => {
 
@@ -134,21 +135,13 @@ const ProfilePage = () => {
 
             await fetch(uploadUrl, {
                 method: "PUT",
-                headers: {
-                    "Content-Type": file.type
-                },
+                headers: { "Content-Type": file.type },
                 body: file
             })
 
-            const saveRes = await api.post("/user/avatar", { key })
+            await api.post("/user/avatar", { key })
 
-            const updatedUser = {
-                ...saveRes.data.user,
-                avatarUrl: saveRes.data.avatarUrl
-            }
-
-            setUser(updatedUser)
-            updateUser(updatedUser)
+            await fetchProfile()
 
         } catch (err) {
 
@@ -158,6 +151,8 @@ const ProfilePage = () => {
 
     }
 
+    /* ---------------- LOADING ---------------- */
+
     if (loading) {
         return (
             <AppLayout>
@@ -165,6 +160,18 @@ const ProfilePage = () => {
             </AppLayout>
         )
     }
+
+    /* ---------------- AVATAR URL ---------------- */
+
+    const avatarSrc =
+        user?.avatarUrl ||
+        (user?.avatarKey?.startsWith("http")
+            ? user.avatarKey
+            : user?.avatarKey
+                ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${user.avatarKey}`
+                : null)
+
+    /* ---------------- UI ---------------- */
 
     return (
 
@@ -190,18 +197,17 @@ const ProfilePage = () => {
                                 }}
                             />
 
-                            {user?.avatarUrl ? (
+                            {avatarSrc ? (
+
                                 <img
-                                    src={user.avatarUrl}
+                                    src={avatarSrc}
                                     className="w-full h-full object-cover"
                                 />
-                            ) : user?.avatarKey ? (
-                                <img
-                                    src={`https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${user.avatarKey}`}
-                                    className="w-full h-full object-cover"
-                                />
+
                             ) : (
-                                user?.username[0].toUpperCase()
+
+                                user?.name?.[0]?.toUpperCase()
+
                             )}
 
                         </label>
@@ -209,7 +215,7 @@ const ProfilePage = () => {
                         <div>
 
                             <h1 className="text-3xl font-bold">
-                                {user?.username}
+                                {user?.name}
                             </h1>
 
                             <p className="text-gray-400">
@@ -229,7 +235,6 @@ const ProfilePage = () => {
 
                 </div>
 
-
                 {/* STATS */}
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -240,7 +245,6 @@ const ProfilePage = () => {
                     <StatCard label="Comments" value={stats?.comments || 0} />
 
                 </div>
-
 
                 {/* AI INSIGHTS */}
 
@@ -267,7 +271,6 @@ const ProfilePage = () => {
 
                 </div>
 
-
                 {/* UPLOADED VIDEOS */}
 
                 <Section title="🎥 Uploaded Videos">
@@ -277,7 +280,6 @@ const ProfilePage = () => {
                     }
                 </Section>
 
-
                 {/* WATCH HISTORY */}
 
                 <Section title="🕘 Watch History">
@@ -286,7 +288,6 @@ const ProfilePage = () => {
                         : <VideoGrid videos={history} />
                     }
                 </Section>
-
 
                 {/* ACTIVITY */}
 
@@ -316,8 +317,7 @@ const ProfilePage = () => {
 
                 </div>
 
-
-                {/* EDIT MODAL */}
+                {/* EDIT PROFILE MODAL */}
 
                 {editOpen && (
 
@@ -330,10 +330,10 @@ const ProfilePage = () => {
                             </h2>
 
                             <input
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
                                 className="w-full bg-gray-800 p-2 rounded"
-                                placeholder="Username"
+                                placeholder="Name"
                             />
 
                             <input
@@ -382,6 +382,7 @@ const ProfilePage = () => {
 
 }
 
+/* ---------------- VIDEO GRID ---------------- */
 
 const VideoGrid = ({ videos }: { videos: Video[] }) => (
 
@@ -393,34 +394,24 @@ const VideoGrid = ({ videos }: { videos: Video[] }) => (
 
 )
 
+/* ---------------- SECTION ---------------- */
 
 const Section = ({ title, children }: any) => (
 
     <div className="space-y-4">
-
-        <h2 className="text-xl font-semibold">
-            {title}
-        </h2>
-
+        <h2 className="text-xl font-semibold">{title}</h2>
         {children}
-
     </div>
 
 )
 
+/* ---------------- STAT CARD ---------------- */
 
 const StatCard = ({ label, value }: { label: string, value: number }) => (
 
     <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
-
-        <p className="text-2xl font-bold">
-            {value}
-        </p>
-
-        <p className="text-gray-400 text-sm">
-            {label}
-        </p>
-
+        <p className="text-2xl font-bold">{value}</p>
+        <p className="text-gray-400 text-sm">{label}</p>
     </div>
 
 )

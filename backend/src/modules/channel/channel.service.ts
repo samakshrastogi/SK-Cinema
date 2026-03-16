@@ -1,4 +1,4 @@
-import { prisma } from "../../config/prisma";
+import { prisma } from "../../config/prisma"
 
 export const createChannel = async (
     userId: number,
@@ -6,39 +6,54 @@ export const createChannel = async (
     username: string,
     description?: string
 ) => {
-    if (!name || !username) {
-        throw new Error("Channel name and username are required");
+    if (!userId) {
+        throw new Error("Invalid user")
     }
 
-    // Check if user already has a channel
+    if (!name || !username) {
+        throw new Error("Channel name and username are required")
+    }
+
+    const normalizedUsername = username.trim().toLowerCase()
+
     const existingChannel = await prisma.channel.findUnique({
-        where: { userId },
-    });
+        where: { userId }
+    })
 
     if (existingChannel) {
-        throw new Error("You already have a channel");
+        throw new Error("You already have a channel")
     }
 
-    // Check if username is already taken
     const existingUsername = await prisma.channel.findUnique({
-        where: { username },
-    });
+        where: { username: normalizedUsername }
+    })
 
     if (existingUsername) {
-        throw new Error("Channel username already taken");
+        throw new Error("Channel username already taken")
     }
 
     return prisma.channel.create({
         data: {
-            name,
-            username,
-            description,
-            userId,
+            name: name.trim(),
+            username: normalizedUsername,
+            description: description?.trim(),
+            userId
         },
-    });
-};
+        select: {
+            id: true,
+            name: true,
+            username: true,
+            description: true,
+            createdAt: true
+        }
+    })
+}
 
 export const getMyChannel = async (userId: number) => {
+    if (!userId) {
+        throw new Error("Invalid user")
+    }
+
     return prisma.channel.findUnique({
         where: { userId },
         select: {
@@ -46,7 +61,7 @@ export const getMyChannel = async (userId: number) => {
             name: true,
             username: true,
             description: true,
-            createdAt: true,
-        },
-    });
-};
+            createdAt: true
+        }
+    })
+}

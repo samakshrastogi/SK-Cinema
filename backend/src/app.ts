@@ -17,10 +17,11 @@ import "./workers"
 const app = express()
 
 const JWT_SECRET = process.env.JWT_SECRET as string
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173"
 
 app.use(
     cors({
-        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        origin: CLIENT_URL,
         credentials: true
     })
 )
@@ -47,30 +48,51 @@ passport.use(
         },
         async (_accessToken, _refreshToken, profile, done) => {
             try {
-                const email = profile.emails?.[0].value
+                const email = profile.emails?.[0]?.value
+                const googleId = profile.id
+                const name = profile.displayName
+                const avatar = profile.photos?.[0]?.value
 
                 if (!email) {
-                    return done(new Error("No email"), false)
+                    return done(new Error("Google email not found"), false)
                 }
 
                 let user = await prisma.user.findUnique({
-                    where: { email }
+                    where: { email },
+                    include: { channel: true }
                 })
 
                 if (!user) {
+                    const username = email.split("@")[0]
+
                     user = await prisma.user.create({
                         data: {
                             email,
-                            username: email.split("@")[0],
-                            password: ""
+                            username,
+                            name,
+                            googleId,
+                            avatarKey: avatar,
+                            provider: "GOOGLE",
+                            isVerified: true
                         }
                     })
 
                     await prisma.channel.create({
                         data: {
-                            name: user.username,
-                            username: user.username,
+                            name: username,
+                            username,
                             userId: user.id
+                        }
+                    })
+                } else {
+                    user = await prisma.user.update({
+                        where: { id: user.id },
+                        data: {
+                            googleId,
+                            name,
+                            avatarKey: avatar,
+                            provider: "GOOGLE",
+                            isVerified: true
                         }
                     })
                 }
@@ -81,16 +103,21 @@ passport.use(
                     { expiresIn: "30d" }
                 )
 
-                return done(null, { token })
+                return done(null, { token, user })
             } catch (err) {
-                return done(err, false)
+                return done(err as Error, false)
             }
         }
     )
 )
 
-passport.serializeUser((user: any, done) => done(null, user))
-passport.deserializeUser((user: any, done) => done(null, user))
+passport.serializeUser((user: any, done) => {
+    done(null, user)
+})
+
+passport.deserializeUser((user: any, done) => {
+    done(null, user)
+})
 
 app.use("/api/auth", authRoutes)
 app.use("/api/user", userRoutes)

@@ -8,11 +8,7 @@ import { s3 } from "../../config/s3"
 
 const router = Router()
 
-
-/* CLOUD FRONT SIGN HELPER */
-
 const signCloudFrontUrl = (key: string) => {
-
     const encodedKey = encodeURI(key)
 
     const url = `https://${process.env.CLOUDFRONT_DOMAIN}/${encodedKey}`
@@ -23,16 +19,10 @@ const signCloudFrontUrl = (key: string) => {
         privateKey: process.env.CLOUDFRONT_PRIVATE_KEY!.replace(/\\n/g, "\n"),
         dateLessThan: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     })
-
 }
 
-
-/* GET PROFILE */
-
 router.get("/me", authenticate, async (req: AuthRequest, res) => {
-
     try {
-
         if (!req.user) {
             return res.status(401).json({
                 success: false,
@@ -52,25 +42,21 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
             })
         }
 
-        const [videosCount, playlistsCount, favoritesCount, commentsCount] = await Promise.all([
-
-            prisma.video.count({
-                where: { channelId: user.channel?.id }
-            }),
-
-            prisma.playlist.count({
-                where: { userId: user.id }
-            }),
-
-            prisma.videoAction.count({
-                where: { userId: user.id, actionType: "LIKE" }
-            }),
-
-            prisma.videoAction.count({
-                where: { userId: user.id, actionType: "COMMENT" }
-            })
-
-        ])
+        const [videosCount, playlistsCount, favoritesCount, commentsCount] =
+            await Promise.all([
+                prisma.video.count({
+                    where: { channelId: user.channel?.id }
+                }),
+                prisma.playlist.count({
+                    where: { userId: user.id }
+                }),
+                prisma.videoAction.count({
+                    where: { userId: user.id, actionType: "LIKE" }
+                }),
+                prisma.videoAction.count({
+                    where: { userId: user.id, actionType: "COMMENT" }
+                })
+            ])
 
         const uploadedVideos = await prisma.video.findMany({
             where: {
@@ -82,7 +68,7 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
             take: 12
         })
 
-        const watchHistory = await prisma.videoAction.findMany({
+        const historyActions = await prisma.videoAction.findMany({
             where: {
                 userId: user.id,
                 actionType: { in: ["LIKE", "COMMENT"] }
@@ -97,30 +83,29 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
         })
 
         return res.json({
-
             success: true,
-
             data: {
-
                 user: {
                     id: user.id,
                     email: user.email,
                     username: user.username,
+                    name: user.name,
                     avatarKey: user.avatarKey,
-                    avatarUrl: user.avatarKey ? signCloudFrontUrl(user.avatarKey) : null,
+                    avatarUrl: user.avatarKey
+                        ? user.avatarKey.startsWith("http")
+                            ? user.avatarKey
+                            : signCloudFrontUrl(user.avatarKey)
+                        : null,
                     provider: user.provider,
                     createdAt: user.createdAt
                 },
-
                 channel: user.channel,
-
                 stats: {
                     videos: videosCount,
                     playlists: playlistsCount,
                     favorites: favoritesCount,
                     comments: commentsCount
                 },
-
                 uploadedVideos: uploadedVideos.map((video) => ({
                     id: video.id,
                     title: video.title,
@@ -129,39 +114,26 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
                     size: Number(video.size),
                     createdAt: video.createdAt
                 })),
-
-                history: watchHistory.map((h) => ({
+                history: historyActions.map((h) => ({
                     id: h.video.id,
                     title: h.video.title,
                     aiTitle: h.video.aiData?.aiTitle ?? null,
                     thumbnailKey: h.video.thumbnailKey
                 }))
-
             }
-
         })
-
     } catch (error) {
-
-        console.error("🔥 Profile API Error:", error)
+        console.error("Profile API Error:", error)
 
         return res.status(500).json({
             success: false,
             message: "Server error"
         })
-
     }
-
 })
 
-
-
-/* UPDATE PROFILE */
-
 router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
-
     try {
-
         if (!req.user) {
             return res.status(401).json({
                 success: false,
@@ -173,7 +145,9 @@ router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
 
         const user = await prisma.user.update({
             where: { id: req.user.id },
-            data: { username: username || undefined }
+            data: {
+                username: username || undefined
+            }
         })
 
         const channel = await prisma.channel.update({
@@ -186,33 +160,25 @@ router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
 
         return res.json({
             success: true,
-            user,
-            channel
+            data: { user, channel }
         })
-
     } catch (error) {
-
-        console.error("🔥 Profile Update Error:", error)
+        console.error("Profile update error:", error)
 
         return res.status(500).json({
             success: false,
             message: "Profile update failed"
         })
-
     }
-
 })
 
-
-
-/* GENERATE AVATAR UPLOAD URL */
-
 router.post("/avatar-upload-url", authenticate, async (req: AuthRequest, res) => {
-
     try {
-
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
 
         const { fileType } = req.body
@@ -222,8 +188,11 @@ router.post("/avatar-upload-url", authenticate, async (req: AuthRequest, res) =>
             include: { channel: true }
         })
 
-        if (!user || !user.channel) {
-            return res.status(400).json({ message: "Channel not found" })
+        if (!user?.channel) {
+            return res.status(400).json({
+                success: false,
+                message: "Channel not found"
+            })
         }
 
         const ext = fileType.split("/")[1]
@@ -240,57 +209,51 @@ router.post("/avatar-upload-url", authenticate, async (req: AuthRequest, res) =>
             expiresIn: 60 * 5
         })
 
-        res.json({ uploadUrl, key })
-
+        return res.json({
+            success: true,
+            uploadUrl,
+            key
+        })
     } catch (error) {
-
         console.error("Avatar upload url error:", error)
 
-        res.status(500).json({
-            message: "Failed to generate avatar upload URL"
+        return res.status(500).json({
+            success: false,
+            message: "Failed to generate upload URL"
         })
-
     }
-
 })
 
-
-
-/* SAVE AVATAR KEY */
-
 router.post("/avatar", authenticate, async (req: AuthRequest, res) => {
-
     try {
-
         if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized" })
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
         }
 
         const { key } = req.body
 
-        const user = await prisma.user.update({
+        await prisma.user.update({
             where: { id: req.user.id },
             data: { avatarKey: key }
         })
 
         const avatarUrl = signCloudFrontUrl(key)
 
-        res.json({
+        return res.json({
             success: true,
-            avatarUrl,
-            user
+            avatarUrl
         })
-
     } catch (error) {
-
         console.error("Avatar save error:", error)
 
-        res.status(500).json({
+        return res.status(500).json({
+            success: false,
             message: "Failed to save avatar"
         })
-
     }
-
 })
 
 export default router

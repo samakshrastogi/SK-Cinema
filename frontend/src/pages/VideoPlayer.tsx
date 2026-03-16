@@ -72,16 +72,13 @@ const VideoPlayer = () => {
 
     useEffect(() => {
         if (shouldScroll && commentsRef.current) {
-            commentsRef.current.scrollTop =
-                commentsRef.current.scrollHeight
+            commentsRef.current.scrollTop = commentsRef.current.scrollHeight
             setShouldScroll(false)
         }
     }, [comments])
 
     const loadVideo = async () => {
-
         const res = await api.get(`/video/${id}`)
-
         setVideo(res.data)
 
         const relatedRes = await api.get("/video/list")
@@ -89,7 +86,6 @@ const VideoPlayer = () => {
         setRelated(
             relatedRes.data.filter((v: any) => v.id !== Number(id))
         )
-
     }
 
     const loadActions = async () => {
@@ -102,47 +98,35 @@ const VideoPlayer = () => {
 
         setLiked(res.data.userReaction === "LIKE")
         setDisliked(res.data.userReaction === "DISLIKE")
-
     }
 
     const loadPlaylists = async () => {
-
         const res = await api.get("/video-actions/playlists")
         setPlaylists(res.data)
-
     }
 
     const likeVideo = async () => {
-
         await api.post("/video-actions/react", {
             videoId: id,
             type: "LIKE"
         })
-
         loadActions()
-
     }
 
     const dislikeVideo = async () => {
-
         await api.post("/video-actions/react", {
             videoId: id,
             type: "DISLIKE"
         })
-
         loadActions()
-
     }
 
     const addVideoToPlaylist = async (playlistId: number) => {
-
         await api.post("/video-actions/playlist", {
             videoId: id,
             playlistId
         })
-
         setShowPlaylist(false)
-
     }
 
     const createPlaylist = async () => {
@@ -155,7 +139,6 @@ const VideoPlayer = () => {
 
         setPlaylists([res.data, ...playlists])
         setNewPlaylistName("")
-
     }
 
     const submitComment = async () => {
@@ -171,15 +154,12 @@ const VideoPlayer = () => {
         setShouldScroll(true)
 
         loadActions()
-
     }
 
     const handleEnded = () => {
-
         if (related.length > 0) {
             navigate(`/video/${related[0].id}`)
         }
-
     }
 
     const timeAgo = (date: string) => {
@@ -196,7 +176,6 @@ const VideoPlayer = () => {
 
         const minutes = Math.floor(seconds / 60)
         return `${minutes} minutes ago`
-
     }
 
     if (!video) {
@@ -211,21 +190,26 @@ const VideoPlayer = () => {
 
         <AppLayout>
 
-            <div className="grid gap-6 lg:grid-cols-4 max-w-[1400px]">
+            <div className="grid lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto">
 
                 {/* LEFT SIDE */}
 
-                <div className="lg:col-span-3 space-y-6">
+                <div className="lg:col-span-3 flex flex-col gap-6">
 
-                    <div className="bg-black rounded-2xl overflow-hidden shadow-xl h-[420px]">
+                    {/* VIDEO */}
+
+                    <div className="bg-black rounded-2xl overflow-hidden shadow-xl aspect-video">
+
                         <video
                             ref={videoRef}
                             src={video.signedUrl}
                             controls
                             autoPlay
+                            controlsList="nodownload"
                             onEnded={handleEnded}
-                            className="w-full h-full object-fill"
+                            className="w-full h-full object-contain"
                         />
+
                     </div>
 
                     {/* VIDEO INFO */}
@@ -256,34 +240,26 @@ const VideoPlayer = () => {
 
                             </div>
 
-                            {/* ACTION BUTTONS */}
-
                             <div className="flex items-center gap-3">
 
                                 <button
                                     onClick={likeVideo}
-                                    className={`px-4 py-1 rounded-lg text-sm ${liked
-                                        ? "bg-green-600 text-white"
-                                        : "bg-white/10"
-                                        } `}
+                                    className={`px-4 py-1 rounded-lg text-sm ${liked ? "bg-green-600 text-white" : "bg-white/10"
+                                        }`}
                                 >
                                     👍 {likes}
                                 </button>
 
                                 <button
                                     onClick={dislikeVideo}
-                                    className={`px-4 py-1 rounded-lg text-sm ${disliked
-                                        ? "bg-red-600 text-white"
-                                        : "bg-white/10"
-                                        } `}
+                                    className={`px-4 py-1 rounded-lg text-sm ${disliked ? "bg-red-600 text-white" : "bg-white/10"
+                                        }`}
                                 >
                                     👎 {dislikes}
                                 </button>
 
                                 <button
-                                    onClick={() =>
-                                        setShowPlaylist(!showPlaylist)
-                                    }
+                                    onClick={() => setShowPlaylist(!showPlaylist)}
                                     className="px-4 py-1 rounded-lg text-sm bg-purple-600"
                                 >
                                     ➕ Playlist
@@ -301,9 +277,7 @@ const VideoPlayer = () => {
 
                                     <div
                                         key={p.id}
-                                        onClick={() =>
-                                            addVideoToPlaylist(p.id)
-                                        }
+                                        onClick={() => addVideoToPlaylist(p.id)}
                                         className="cursor-pointer hover:bg-white/10 p-2 rounded"
                                     >
                                         {p.name}
@@ -315,11 +289,7 @@ const VideoPlayer = () => {
 
                                     <input
                                         value={newPlaylistName}
-                                        onChange={(e) =>
-                                            setNewPlaylistName(
-                                                e.target.value
-                                            )
-                                        }
+                                        onChange={(e) => setNewPlaylistName(e.target.value)}
                                         placeholder="New playlist"
                                         className="flex-1 bg-black/40 px-2 py-1 rounded"
                                     />
@@ -354,34 +324,27 @@ const VideoPlayer = () => {
 
                             {comments.map((c) => {
 
-                                const isMine =
-                                    c.username === currentUsername
+                                const isMine = c.username === currentUsername
 
                                 return (
 
                                     <div
                                         key={c.id}
-                                        className={`flex ${isMine
-                                            ? "justify-end"
-                                            : "justify-start"
-                                            } `}
+                                        className={`flex ${isMine ? "justify-end" : "justify-start"
+                                            }`}
                                     >
 
                                         <div
                                             className={`max-w-[70%] px-3 py-2 rounded-lg text-sm ${isMine
-                                                ? "bg-purple-600 text-white"
-                                                : "bg-black/40"
-                                                } `}
+                                                    ? "bg-purple-600 text-white"
+                                                    : "bg-black/40"
+                                                }`}
                                         >
 
                                             <div className="text-xs text-gray-300 mb-1 flex gap-2">
                                                 <span>{c.username}</span>
                                                 <span>•</span>
-                                                <span>
-                                                    {timeAgo(
-                                                        c.createdAt
-                                                    )}
-                                                </span>
+                                                <span>{timeAgo(c.createdAt)}</span>
                                             </div>
 
                                             {c.commentText}
@@ -400,11 +363,7 @@ const VideoPlayer = () => {
 
                             <input
                                 value={commentInput}
-                                onChange={(e) =>
-                                    setCommentInput(
-                                        e.target.value
-                                    )
-                                }
+                                onChange={(e) => setCommentInput(e.target.value)}
                                 placeholder="Write a comment..."
                                 className="flex-1 bg-black/40 rounded-lg px-3 py-2 text-sm outline-none"
                             />
@@ -424,9 +383,7 @@ const VideoPlayer = () => {
 
                 {/* RIGHT SIDE */}
 
-                <div className="space-y-5">
-
-                    {/* UP NEXT */}
+                <div className="flex flex-col gap-6 sticky top-24 h-fit">
 
                     <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
 
@@ -434,15 +391,13 @@ const VideoPlayer = () => {
                             Up Next
                         </h2>
 
-                        <div className="space-y-3">
+                        <div className="space-y-3 max-h-[420px] overflow-y-auto">
 
                             {related.slice(0, 8).map((item) => (
 
                                 <div
                                     key={item.id}
-                                    onClick={() =>
-                                        navigate(`/video/${item.id}`)
-                                    }
+                                    onClick={() => navigate(`/video/${item.id}`)}
                                     className="flex gap-2 cursor-pointer hover:bg-black/40 p-2 rounded-lg"
                                 >
 
@@ -451,52 +406,9 @@ const VideoPlayer = () => {
                                         className="w-24 h-16 object-cover rounded-md"
                                     />
 
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium line-clamp-2">
-                                            {item.aiTitle ||
-                                                item.title}
-                                        </p>
-                                    </div>
-
-                                </div >
-
-                            ))}
-
-                        </div >
-
-                    </div >
-
-                    {/* RECOMMENDED */}
-
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3" >
-
-                        <h2 className="text-lg font-semibold mb-3">
-                            Recommended
-                        </h2>
-
-                        <div className="space-y-3">
-
-                            {related.slice(8, 16).map((item) => (
-
-                                <div
-                                    key={item.id}
-                                    onClick={() =>
-                                        navigate(`/video/${item.id}`)
-                                    }
-                                    className="flex gap-2 cursor-pointer hover:bg-black/40 p-2 rounded-lg"
-                                >
-
-                                    <img
-                                        src={`https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${item.thumbnailKey}`}
-                                        className="w-24 h-16 object-cover rounded-md"
-                                    />
-
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium line-clamp-2">
-                                            {item.aiTitle ||
-                                                item.title}
-                                        </p>
-                                    </div>
+                                    <p className="text-sm font-medium line-clamp-2">
+                                        {item.aiTitle || item.title}
+                                    </p>
 
                                 </div>
 
@@ -506,13 +418,47 @@ const VideoPlayer = () => {
 
                     </div>
 
-                </div >
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
 
-            </div >
+                        <h2 className="text-lg font-semibold mb-3">
+                            Recommended
+                        </h2>
 
-        </AppLayout >
+                        <div className="space-y-3 max-h-[420px] overflow-y-auto">
+
+                            {related.slice(8, 16).map((item) => (
+
+                                <div
+                                    key={item.id}
+                                    onClick={() => navigate(`/video/${item.id}`)}
+                                    className="flex gap-2 cursor-pointer hover:bg-black/40 p-2 rounded-lg"
+                                >
+
+                                    <img
+                                        src={`https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${item.thumbnailKey}`}
+                                        className="w-24 h-16 object-cover rounded-md"
+                                    />
+
+                                    <p className="text-sm font-medium line-clamp-2">
+                                        {item.aiTitle || item.title}
+                                    </p>
+
+                                </div>
+
+                            ))}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </AppLayout>
 
     )
+
 }
 
 export default VideoPlayer

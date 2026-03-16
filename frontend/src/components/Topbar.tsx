@@ -8,45 +8,22 @@ import { useNavigate } from "react-router-dom"
 interface User {
     id: number
     username: string
+    name: string
     createdAt: string
+    avatarUrl?: string
+    avatarKey?: string
 }
 
 const Topbar = () => {
 
-    const { logout } = useAuth()
+    const { logout, user } = useAuth()
     const { sidebarOpen } = useLayout()
     const navigate = useNavigate()
 
     const [query, setQuery] = useState("")
-    const [user, setUser] = useState<User | null>(null)
     const [dropdownOpen, setDropdownOpen] = useState(false)
 
     const dropdownRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-
-        const fetchUser = async () => {
-            try {
-
-                const res = await api.get("/user/me")
-
-                const userData = res.data?.data?.user
-
-                if (!userData?.username) throw new Error()
-
-                setUser(userData)
-
-            } catch {
-
-                logout()
-                navigate("/login")
-
-            }
-        }
-
-        fetchUser()
-
-    }, [logout, navigate])
 
     useEffect(() => {
 
@@ -75,11 +52,11 @@ const Topbar = () => {
 
     }
 
-    const getInitials = (username?: string) => {
+    const getInitials = (name?: string) => {
 
-        if (!username) return "?"
+        if (!name) return "?"
 
-        return username
+        return name
             .split(" ")
             .map((w) => w[0])
             .join("")
@@ -87,6 +64,18 @@ const Topbar = () => {
             .slice(0, 2)
 
     }
+    const avatarSrc = (() => {
+        if (!user) return null
+
+        if (user.avatarUrl) return user.avatarUrl
+
+        if (user.avatarKey) {
+            if (user.avatarKey.startsWith("http")) return user.avatarKey
+            return `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${user.avatarKey}`
+        }
+
+        return null
+    })()
 
     return (
 
@@ -142,9 +131,16 @@ const Topbar = () => {
 
                     <div
                         onClick={() => setDropdownOpen(!dropdownOpen)}
-                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-purple-600 flex items-center justify-center cursor-pointer font-semibold"
+                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-purple-600 overflow-hidden flex items-center justify-center cursor-pointer font-semibold"
                     >
-                        {getInitials(user?.username)}
+                        {avatarSrc ? (
+                            <img
+                                src={avatarSrc}
+                                className="w-full h-full object-cover"
+                            />
+                        ) : (
+                            getInitials(user?.name)
+                        )}
                     </div>
 
                     {dropdownOpen && user && (
@@ -152,7 +148,7 @@ const Topbar = () => {
                         <div className="absolute right-0 mt-3 w-60 bg-gray-900 border border-gray-800 rounded-xl shadow-xl p-4">
 
                             <p className="font-semibold text-lg">
-                                {user.username}
+                                {user.name}
                             </p>
 
                             <p className="text-sm text-gray-400">
