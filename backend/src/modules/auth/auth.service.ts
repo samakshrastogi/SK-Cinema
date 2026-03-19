@@ -27,7 +27,18 @@ class AuthError extends Error {
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
-    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+    auth: {
+        user: EMAIL_USER,
+        pass: EMAIL_PASS,
+    },
+})
+
+transporter.verify((err, success) => {
+    if (err) {
+        console.error("❌ SMTP ERROR:", err)
+    } else {
+        console.log("✅ SMTP READY")
+    }
 })
 
 /* ---------------- EMAIL TEMPLATE ---------------- */
