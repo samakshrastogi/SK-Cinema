@@ -1,11 +1,10 @@
 import { Queue } from "bullmq";
+import { redisConnection } from "../config/redis";
 
 /* ---------------- QUEUE ---------------- */
 
 export const videoAIQueue = new Queue("videoAIQueue", {
-    connection: {
-        url: process.env.REDIS_URL!
-    },
+    connection: redisConnection as any,
 
     defaultJobOptions: {
         attempts: 3,

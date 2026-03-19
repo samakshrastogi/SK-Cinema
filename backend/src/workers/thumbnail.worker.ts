@@ -1,6 +1,7 @@
 import { Worker } from "bullmq"
 import { prisma } from "../config/prisma"
 import { processThumbnailPipeline } from "../services/thumbnail.service"
+import { redisConnection } from "../config/redis"
 
 const worker = new Worker(
     "thumbnailQueue",
@@ -33,9 +34,7 @@ const worker = new Worker(
     },
     {
         // ✅ FIX: correct Redis config
-        connection: {
-            url: process.env.REDIS_URL!
-        },
+        connection: redisConnection as any,
         concurrency: 5
     }
 )

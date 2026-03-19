@@ -1,7 +1,6 @@
 import { Queue } from "bullmq";
+import { redisConnection } from "../config/redis";
 
 export const thumbnailQueue = new Queue("thumbnailQueue", {
-    connection: {
-        url: process.env.REDIS_URL!
-    }
+    connection: redisConnection as any
 });

@@ -1,23 +1,20 @@
 import { Queue } from "bullmq"
 import { prisma } from "../config/prisma"
+import { redisConnection } from "../config/redis"
 
 /* ---------------- QUEUES ---------------- */
 
 export const thumbnailQueue = new Queue(
     "thumbnailQueue",
     {
-        connection: {
-            url: process.env.REDIS_URL!
-        }
+        connection: redisConnection as any
     }
 )
 
 export const videoAIQueue = new Queue(
     "videoAIQueue",
     {
-        connection: {
-            url: process.env.REDIS_URL!
-        }
+        connection: redisConnection as any
     }
 )
 

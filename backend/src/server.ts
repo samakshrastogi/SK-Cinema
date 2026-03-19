@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import { QueueEvents } from "bullmq";
 
 import app from "./app";
+import { redisConnection } from "./config/redis";
 
 dotenv.config();
 
@@ -33,9 +34,7 @@ io.on("connection", (socket) => {
 /* ---------------- QUEUE EVENTS ---------------- */
 
 const queueEvents = new QueueEvents("videoAIQueue", {
-  connection: {
-    url: process.env.REDIS_URL!
-  }
+  connection: redisConnection as any
 });
 
 /* ---------------- PROGRESS EVENT ---------------- */

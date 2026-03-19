@@ -9,6 +9,7 @@ import axios from "axios"
 import { s3 } from "../config/s3"
 import { GetObjectCommand } from "@aws-sdk/client-s3"
 import { pipeline } from "stream/promises"
+import { redisConnection } from "../config/redis"
 
 ffmpeg.setFfmpegPath("ffmpeg")
 
@@ -246,9 +247,7 @@ const worker = new Worker(
     "videoAIQueue",
     processVideoAI,
     {
-        connection: {
-            url: process.env.REDIS_URL!
-        },
+        connection: redisConnection as any,
         concurrency: 3,
         limiter: {
             max: 10,
