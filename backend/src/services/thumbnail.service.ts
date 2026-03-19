@@ -4,12 +4,11 @@ import path from "path";
 
 import { s3 } from "../config/s3";
 import { prisma } from "../config/prisma";
-import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 
 import { generateMultipleThumbnails } from "./ffmpeg.service";
 import { selectBestThumbnail } from "./selector.service";
 import { optimizeThumbnail } from "./optimizer.service";
-import { uploadToS3 } from "./s3.service";
 
 export const processThumbnailPipeline = async (videoId: number) => {
 
@@ -40,7 +39,7 @@ export const processThumbnailPipeline = async (videoId: number) => {
         const writeStream = fs.createWriteStream(tempVideoPath);
         stream.pipe(writeStream);
         stream.on("error", reject);
-        writeStream.on("finish", resolve);
+        writeStream.on("finish", () => resolve(null)); // ✅ FIXED
     });
 
     const thumbnails = await generateMultipleThumbnails(
@@ -57,10 +56,16 @@ export const processThumbnailPipeline = async (videoId: number) => {
     const thumbnailKey =
         `${video.channel.username}/thumbnails/${videoId}.webp`;
 
-    await uploadToS3(
-        process.env.AWS_BUCKET!,
-        thumbnailKey,
-        optimizedPath
+    /* ✅ DIRECT S3 UPLOAD (no external function needed) */
+    const fileBuffer = fs.readFileSync(optimizedPath);
+
+    await s3.send(
+        new PutObjectCommand({
+            Bucket: process.env.AWS_BUCKET!,
+            Key: thumbnailKey,
+            Body: fileBuffer,
+            ContentType: "image/webp"
+        })
     );
 
     await prisma.video.update({

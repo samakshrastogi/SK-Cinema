@@ -64,10 +64,15 @@ queueEvents.on("progress", ({ data }) => {
 
 queueEvents.on("completed", ({ returnvalue }) => {
 
-  const videoId =
-    typeof returnvalue === "object" && returnvalue !== null && "videoId" in returnvalue
-      ? (returnvalue as any).videoId
-      : null;
+  let videoId: number | null = null;
+
+  if (returnvalue && typeof returnvalue === "object") {
+    const data = returnvalue as { videoId?: number };
+
+    if (typeof data.videoId === "number") {
+      videoId = data.videoId;
+    }
+  }
 
   if (!videoId) return;
 

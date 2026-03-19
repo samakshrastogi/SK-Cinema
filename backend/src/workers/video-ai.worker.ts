@@ -1,5 +1,4 @@
 import { Worker, Job } from "bullmq"
-import { redisConnection } from "../config/redis"
 import { prisma } from "../config/prisma"
 import fs from "fs"
 import os from "os"
@@ -247,7 +246,9 @@ const worker = new Worker(
     "videoAIQueue",
     processVideoAI,
     {
-        connection: redisConnection as any,
+        connection: {
+            url: process.env.REDIS_URL!
+        },
         concurrency: 3,
         limiter: {
             max: 10,

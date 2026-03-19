@@ -1,5 +1,4 @@
 import { Worker } from "bullmq"
-import { redisConnection } from "../config/redis"
 import { prisma } from "../config/prisma"
 import { processThumbnailPipeline } from "../services/thumbnail.service"
 
@@ -17,10 +16,8 @@ const worker = new Worker(
             throw new Error("Video not found")
         }
 
-        const result = await processThumbnailPipeline(
-            video.s3Key,
-            process.env.AWS_BUCKET!
-        )
+        // ✅ FIX: correct function usage
+        const result = await processThumbnailPipeline(videoId)
 
         await prisma.video.update({
             where: { id: videoId },
@@ -35,10 +32,15 @@ const worker = new Worker(
 
     },
     {
-        connection: redisConnection as any,
+        // ✅ FIX: correct Redis config
+        connection: {
+            url: process.env.REDIS_URL!
+        },
         concurrency: 5
     }
 )
+
+/* ---------------- EVENTS ---------------- */
 
 worker.on("completed", (job) => {
     console.log("Thumbnail generated:", job.id)
