@@ -1,14 +1,4 @@
-import axios, { AxiosError } from "axios"
-
-interface ImportMetaEnv {
-  readonly VITE_API_URL: string
-}
-
-declare global {
-  interface ImportMeta {
-    readonly env: ImportMetaEnv
-  }
-}
+import axios, { AxiosError, AxiosHeaders } from "axios"
 
 const getToken = () => {
   return (
@@ -27,10 +17,9 @@ api.interceptors.request.use((config) => {
   const token = getToken()
 
   if (token) {
-    config.headers = {
-      ...config.headers,
-      Authorization: `Bearer ${token}`
-    }
+    const headers = new AxiosHeaders(config.headers)
+    headers.set("Authorization", `Bearer ${token}`)
+    config.headers = headers
   }
 
   return config

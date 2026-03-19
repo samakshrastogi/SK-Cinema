@@ -33,8 +33,12 @@ const ResetPassword = () => {
             setTimeout(() => {
                 navigate("/login");
             }, 2000);
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Reset failed");
+        } catch (err: unknown) {
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError("Reset failed");
+            }
         }
     };
 

@@ -63,19 +63,9 @@ const VideoPlayer = () => {
 
     const [shouldScroll, setShouldScroll] = useState(false)
 
-    useEffect(() => {
-        if (!id) return
-        loadVideo()
-        loadActions()
-        loadPlaylists()
-    }, [id])
 
-    useEffect(() => {
-        if (shouldScroll && commentsRef.current) {
-            commentsRef.current.scrollTop = commentsRef.current.scrollHeight
-            setShouldScroll(false)
-        }
-    }, [comments])
+
+
 
     const loadVideo = async () => {
 
@@ -94,10 +84,10 @@ const VideoPlayer = () => {
 
             const relatedRes = await api.get("/video")
 
-            const allVideos = relatedRes.data?.data || []
+            const allVideos = relatedRes.data?.data as RelatedVideo[] || []
 
             setRelated(
-                allVideos.filter((v: any) => v.id !== Number(id))
+                allVideos.filter((v) => v.id !== Number(id))
             )
 
         } catch (error) {
@@ -107,7 +97,7 @@ const VideoPlayer = () => {
         }
 
     }
-    
+
     const loadActions = async () => {
 
         const res = await api.get(`/video-actions/video/${id}`)
@@ -197,6 +187,19 @@ const VideoPlayer = () => {
         const minutes = Math.floor(seconds / 60)
         return `${minutes} minutes ago`
     }
+    useEffect(() => {
+        if (!id) return
+        loadVideo()
+        loadActions()
+        loadPlaylists()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id])
+    useEffect(() => {
+        if (shouldScroll && commentsRef.current) {
+            commentsRef.current.scrollTop = commentsRef.current.scrollHeight
+            setShouldScroll(false)
+        }
+    }, [comments, shouldScroll])
 
     if (!video) {
         return (
@@ -205,6 +208,7 @@ const VideoPlayer = () => {
             </div>
         )
     }
+
 
     return (
 
@@ -427,6 +431,7 @@ const VideoPlayer = () => {
                                                 ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${item.thumbnailKey}`
                                                 : "/placeholder-thumbnail.png"
                                         }
+                                        alt=""
                                     />
 
                                     <p className="text-sm font-medium line-clamp-2">
@@ -463,6 +468,7 @@ const VideoPlayer = () => {
                                                 ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${item.thumbnailKey}`
                                                 : "/placeholder-thumbnail.png"
                                         }
+                                        alt=""
                                     />
 
                                     <p className="text-sm font-medium line-clamp-2">

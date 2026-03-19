@@ -1,21 +1,23 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import axios from "axios"
 
 type Props = {
     videoId: number
 }
+type AISuggestionData = {
+    title?: string
+    description?: string
+    keywords?: string[]
+    tags?: string[]
+}
 
 export default function AISuggestions({ videoId }: Props) {
     const [loading, setLoading] = useState(true)
-    const [data, setData] = useState<any>(null)
+    const [data, setData] = useState<AISuggestionData | null>(null)
     const [title, setTitle] = useState("")
     const [description, setDescription] = useState("")
 
-    useEffect(() => {
-        fetchSuggestions()
-    }, [videoId])
-
-    const fetchSuggestions = async () => {
+    const fetchSuggestions = useCallback(async () => {
         try {
             const res = await axios.get(`/api/ai/video/${videoId}`)
             setData(res.data)
@@ -26,7 +28,11 @@ export default function AISuggestions({ videoId }: Props) {
         } finally {
             setLoading(false)
         }
-    }
+    }, [videoId])
+
+    useEffect(() => {
+        fetchSuggestions()
+    }, [fetchSuggestions])
 
     const applySuggestion = async () => {
         try {
@@ -44,16 +50,20 @@ export default function AISuggestions({ videoId }: Props) {
             <h2>AI Suggestions</h2>
 
             <div>
-                <label>Title</label>
+                <label htmlFor="title">Title</label>
                 <input
+                    id="title"
+                    placeholder="Enter title"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                 />
             </div>
 
             <div>
-                <label>Description</label>
+                <label htmlFor="description">Description</label>
                 <textarea
+                    id="description"
+                    placeholder="Enter description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                 />
@@ -62,7 +72,7 @@ export default function AISuggestions({ videoId }: Props) {
             <div>
                 <label>Keywords</label>
                 <div className="tags">
-                    {data.keywords?.map((k: string) => (
+                    {data?.keywords?.map((k: string) => (
                         <span key={k}>{k}</span>
                     ))}
                 </div>
@@ -71,7 +81,7 @@ export default function AISuggestions({ videoId }: Props) {
             <div>
                 <label>Tags</label>
                 <div className="tags">
-                    {data.tags?.map((t: string) => (
+                    {data?.tags?.map((t: string) => (
                         <span key={t}>{t}</span>
                     ))}
                 </div>

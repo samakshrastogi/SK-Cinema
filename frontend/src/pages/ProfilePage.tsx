@@ -14,13 +14,6 @@ interface User {
     createdAt?: string
 }
 
-interface Channel {
-    id: number
-    username: string
-    name: string
-    description?: string
-}
-
 interface Stats {
     videos: number
     playlists: number
@@ -46,7 +39,6 @@ const ProfilePage = () => {
     const { updateUser } = useAuth()
 
     const [user, setUser] = useState<User | null>(null)
-    const [channel, setChannel] = useState<Channel | null>(null)
     const [stats, setStats] = useState<Stats | null>(null)
     const [videos, setVideos] = useState<Video[]>([])
     const [history, setHistory] = useState<Video[]>([])
@@ -71,7 +63,6 @@ const ProfilePage = () => {
 
             setUser(data.user)
             updateUser(data.user)
-            setChannel(data.channel)
             setStats(data.stats)
             setVideos(data.uploadedVideos)
             setHistory(data.history)
@@ -95,6 +86,7 @@ const ProfilePage = () => {
     }
     useEffect(() => {
         fetchProfile()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     /* ---------------- SAVE PROFILE ---------------- */
@@ -202,6 +194,7 @@ const ProfilePage = () => {
                                 <img
                                     src={avatarSrc}
                                     loading="lazy"
+                                    alt="User avatar"
                                     referrerPolicy="no-referrer"
                                     className="w-full h-full object-cover"
                                 />
@@ -398,7 +391,12 @@ const VideoGrid = ({ videos }: { videos: Video[] }) => (
 
 /* ---------------- SECTION ---------------- */
 
-const Section = ({ title, children }: any) => (
+type SectionProps = {
+    title: string
+    children: React.ReactNode
+}
+
+const Section = ({ title, children }: SectionProps) => (
 
     <div className="space-y-4">
         <h2 className="text-xl font-semibold">{title}</h2>

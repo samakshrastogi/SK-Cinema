@@ -2,17 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Search, Bell } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import { useLayout } from "@/context/LayoutContext"
-import { api } from "@/api/axios"
 import { useNavigate } from "react-router-dom"
-
-interface User {
-    id: number
-    username: string
-    name: string
-    createdAt: string
-    avatarUrl?: string
-    avatarKey?: string
-}
 
 const Topbar = () => {
 
@@ -136,6 +126,7 @@ const Topbar = () => {
                         {avatarSrc ? (
                             <img
                                 src={avatarSrc}
+                                alt="User Profile"
                                 className="w-full h-full object-cover"
                             />
                         ) : (
@@ -152,7 +143,9 @@ const Topbar = () => {
                             </p>
 
                             <p className="text-sm text-gray-400">
-                                Joined: {new Date(user.createdAt).toLocaleDateString()}
+                                Joined: {user.createdAt
+                                    ? new Date(user.createdAt).toLocaleDateString()
+                                    : "N/A"}
                             </p>
 
                             <button

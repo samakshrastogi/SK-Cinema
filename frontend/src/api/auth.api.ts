@@ -2,7 +2,7 @@ import { api } from "./axios"
 
 /* ================= TYPES ================= */
 
-interface ApiResponse<T = any> {
+interface ApiResponse<T = unknown> {
     success: boolean
     message?: string
     data?: T

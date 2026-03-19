@@ -53,8 +53,13 @@ const Auth = () => {
                 setSuccessMessage("OTP sent to your email.");
                 setStep("otp");
             }
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Authentication failed");
+        } catch (err: unknown) {
+            const errorMessage =
+                err instanceof Error
+                    ? err.message
+                    : "Something went wrong"
+
+            setError(errorMessage)
         } finally {
             setLoading(false);
         }
@@ -72,8 +77,13 @@ const Auth = () => {
             setMode("login");
             setStep("form");
             setOtp("");
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Invalid OTP");
+        } catch (err: unknown) {
+            const errorMessage =
+                err instanceof Error
+                    ? err.message
+                    : "Something went wrong"
+
+            setError(errorMessage)
         } finally {
             setLoading(false);
         }
@@ -90,8 +100,13 @@ const Auth = () => {
             setSuccessMessage("Reset instructions sent to your email.");
             setShowForgot(false);
             setForgotEmail("");
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Reset failed");
+        } catch (err: unknown) {
+            const errorMessage =
+                err instanceof Error
+                    ? err.message
+                    : "Something went wrong"
+
+            setError(errorMessage)
         } finally {
             setLoading(false);
         }
@@ -104,8 +119,7 @@ const Auth = () => {
             <div className="hidden lg:flex w-1/2 relative items-center px-20">
 
                 {/* Background Image */}
-                <div
-                    className="absolute inset-0 bg-cover bg-center"
+                <div className="absolute inset-0 bg-cover bg-center"
                     style={{
                         backgroundImage:
                             "url('https://images.unsplash.com/photo-1524985069026-dd778a71c7b4')",
@@ -288,6 +302,7 @@ const Auth = () => {
                             >
                                 <img
                                     src="https://www.svgrepo.com/show/475656/google-color.svg"
+                                    alt="Google logo"
                                     className="w-5 h-5"
                                 />
                                 Continue with Google

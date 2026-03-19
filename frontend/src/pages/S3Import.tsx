@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/api/axios";
 import AppLayout from "@/layouts/AppLayout";
+import axios from "axios";
 
 interface Bucket {
     id: number;
@@ -74,8 +75,14 @@ const S3Import = () => {
             });
 
             fetchBuckets();
-        } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to add bucket");
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error)) {
+                alert(error.response?.data?.message || "Request failed");
+            } else if (error instanceof Error) {
+                alert(error.message);
+            } else {
+                alert("Something went wrong");
+            }
         }
     };
 
@@ -92,8 +99,14 @@ const S3Import = () => {
             const res = await api.get(`/video/s3/buckets/${selectedBucket}/scan`);
             setFiles(res.data);
             setSelectedFiles([]);
-        } catch (error: any) {
-            alert(error.response?.data?.message || "Scan failed");
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error)) {
+                alert(error.response?.data?.message || "Request failed");
+            } else if (error instanceof Error) {
+                alert(error.message);
+            } else {
+                alert("Something went wrong");
+            }
         } finally {
             setScanning(false);
         }
@@ -174,8 +187,14 @@ const S3Import = () => {
 
             alert("Import completed");
             setSelectedFiles([]);
-        } catch (error: any) {
-            alert(error.response?.data?.message || "Import failed");
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error)) {
+                alert(error.response?.data?.message || "Request failed");
+            } else if (error instanceof Error) {
+                alert(error.message);
+            } else {
+                alert("Something went wrong");
+            }
         } finally {
             setImporting(false);
         }
@@ -213,6 +232,7 @@ const S3Import = () => {
                         focus:border-purple-500
                         outline-none
                         "
+                        aria-label="Select S3 bucket"
                         onChange={(e) =>
                             setSelectedBucket(
                                 e.target.value ? Number(e.target.value) : null
@@ -283,6 +303,8 @@ const S3Import = () => {
                                             checked={folderMap[folder].every((f) =>
                                                 selectedFiles.includes(f)
                                             )}
+                                            placeholder="Display Name"
+                                            aria-label="Display Name"
                                             onChange={() => toggleFolder(folder)}
                                         />
 
@@ -306,6 +328,8 @@ const S3Import = () => {
                                                 type="checkbox"
                                                 checked={selectedFiles.includes(fileKey)}
                                                 onChange={() => toggleFile(fileKey)}
+                                                placeholder="Display Name"
+                                                aria-label="Display Name"
                                             />
 
                                             <span className="text-sm text-gray-300">

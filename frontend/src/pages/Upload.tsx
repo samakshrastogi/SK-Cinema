@@ -207,11 +207,7 @@ const Upload = () => {
 
     }
 
-    const removeItem = (index: number) => {
 
-        setQueue(prev => prev.filter((_, i) => i !== index))
-
-    }
 
     /* ---------------- START QUEUE ---------------- */
 
@@ -478,6 +474,8 @@ const Upload = () => {
                                             onChange={(e) =>
                                                 updateItem(index, { title: e.target.value })
                                             }
+                                            placeholder="Display Name"
+                                            aria-label="Display Name"
                                             className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 focus:border-purple-500 outline-none"
                                         />
 
@@ -497,6 +495,8 @@ const Upload = () => {
                                             onChange={(e) =>
                                                 updateItem(index, { description: e.target.value })
                                             }
+                                            placeholder="Display Name"
+                                            aria-label="Display Name"
                                             className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 focus:border-purple-500 outline-none"
                                         />
 

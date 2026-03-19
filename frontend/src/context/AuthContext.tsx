@@ -1,8 +1,8 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
     createContext,
     useContext,
     useState,
-    useEffect,
 } from "react"
 
 interface User {
@@ -12,6 +12,7 @@ interface User {
     name?: string
     avatarUrl?: string
     avatarKey?: string
+    createdAt?: string
 }
 
 interface AuthContextType {
@@ -122,21 +123,6 @@ export const AuthProvider = ({
         setUser(null)
 
     }
-
-    /* ---------------- INIT FROM STORAGE ---------------- */
-
-    useEffect(() => {
-
-        const storedToken = getStoredToken()
-        const storedUser = getStoredUser()
-
-        if (storedToken && storedUser) {
-            setToken(storedToken)
-            setUser(storedUser)
-        }
-
-    }, [])
-
     /* ---------------- CONTEXT VALUE ---------------- */
 
     const value: AuthContextType = {
