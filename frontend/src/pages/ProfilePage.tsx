@@ -201,12 +201,14 @@ const ProfilePage = () => {
 
                                 <img
                                     src={avatarSrc}
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer"
                                     className="w-full h-full object-cover"
                                 />
 
                             ) : (
 
-                                user?.name?.[0]?.toUpperCase()
+                                user?.name?.[0]?.toLowerCase()
 
                             )}
 

@@ -1,26 +1,25 @@
+import bcrypt from "bcrypt"
+import jwt from "jsonwebtoken"
+import crypto from "crypto"
+import nodemailer from "nodemailer"
+import { prisma } from "../../config/prisma"
 
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import nodemailer from "nodemailer";
-import { prisma } from "../../config/prisma";
+const JWT_SECRET = process.env.JWT_SECRET as string
+const EMAIL_USER = process.env.EMAIL_USER as string
+const EMAIL_PASS = process.env.EMAIL_PASS as string
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173"
 
-const JWT_SECRET = process.env.JWT_SECRET as string;
-const EMAIL_USER = process.env.EMAIL_USER as string;
-const EMAIL_PASS = process.env.EMAIL_PASS as string;
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+if (!JWT_SECRET) throw new Error("JWT_SECRET not defined")
+if (!EMAIL_USER || !EMAIL_PASS) throw new Error("Email credentials missing")
 
-if (!JWT_SECRET) throw new Error("JWT_SECRET not defined");
-if (!EMAIL_USER || !EMAIL_PASS) throw new Error("Email credentials missing");
-
-const SALT_ROUNDS = 12;
-const OTP_EXPIRY_MINUTES = 10;
+const SALT_ROUNDS = 12
+const OTP_EXPIRY_MINUTES = 10
 
 class AuthError extends Error {
-    statusCode: number;
+    statusCode: number
     constructor(message: string, statusCode = 400) {
-        super(message);
-        this.statusCode = statusCode;
+        super(message)
+        this.statusCode = statusCode
     }
 }
 
@@ -29,11 +28,15 @@ class AuthError extends Error {
 const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-});
+})
 
 /* ---------------- EMAIL TEMPLATE ---------------- */
 
-const renderEmailLayout = (title: string, body: string, button?: { text: string; link: string }) => {
+const renderEmailLayout = (
+    title: string,
+    body: string,
+    button?: { text: string; link: string }
+) => {
     const buttonHTML = button
         ? `
       <tr>
@@ -46,7 +49,7 @@ const renderEmailLayout = (title: string, body: string, button?: { text: string;
           </a>
         </td>
       </tr>`
-        : "";
+        : ""
 
     return `
   <table width="100%" cellpadding="0" cellspacing="0"
@@ -97,13 +100,13 @@ const renderEmailLayout = (title: string, body: string, button?: { text: string;
   </table>
   </td>
   </tr>
-  </table>`;
-};
+  </table>`
+}
 
 /* ---------------- UTILITIES ---------------- */
 
 const generateOTP = () =>
-    Math.floor(100000 + Math.random() * 900000).toString();
+    Math.floor(100000 + Math.random() * 900000).toString()
 
 /* ---------------- EMAIL SENDERS ---------------- */
 
@@ -123,7 +126,7 @@ const sendOTPEmail = async (email: string, otp: string) => {
   <p style="font-size:14px;color:#6b7280;">
   This code expires in <strong>${OTP_EXPIRY_MINUTES} minutes</strong>.
   </p>
-  `;
+  `
 
     await transporter.sendMail({
         from: `"SK Cinema" <${EMAIL_USER}>`,
@@ -133,8 +136,8 @@ const sendOTPEmail = async (email: string, otp: string) => {
             text: "Open SK Cinema",
             link: CLIENT_URL,
         }),
-    });
-};
+    })
+}
 
 const sendResetEmail = async (email: string, resetLink: string) => {
     const body = `
@@ -145,7 +148,7 @@ const sendResetEmail = async (email: string, resetLink: string) => {
   <p style="font-size:14px;color:#6b7280;">
   This reset link expires in <strong>1 hour</strong>.
   </p>
-  `;
+  `
 
     await transporter.sendMail({
         from: `"SK Cinema" <${EMAIL_USER}>`,
@@ -155,148 +158,155 @@ const sendResetEmail = async (email: string, resetLink: string) => {
             text: "Reset Password",
             link: resetLink,
         }),
-    });
-};
+    })
+}
 
 /* ---------------- AUTH SERVICES ---------------- */
 
 export const registerUser = async (
+    name: string,
     email: string,
     password: string,
     confirmPassword: string
 ) => {
-    if (!email || !password || !confirmPassword)
-        throw new AuthError("All fields are required");
+    if (!name || !email || !password || !confirmPassword)
+        throw new AuthError("All fields are required")
 
     if (password !== confirmPassword)
-        throw new AuthError("Passwords do not match");
+        throw new AuthError("Passwords do not match")
 
     if (password.length < 6)
-        throw new AuthError("Password must be at least 6 characters");
+        throw new AuthError("Password must be at least 6 characters")
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findUnique({ where: { email } })
 
-    if (existingUser) throw new AuthError("Email already registered", 409);
+    if (existingUser) throw new AuthError("Email already registered", 409)
 
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    const otp = generateOTP();
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
+    const otp = generateOTP()
+
+    const username = email.split("@")[0]
 
     await prisma.user.create({
         data: {
+            name,
             email,
-            username: email.split("@")[0],
+            username,
             password: hashedPassword,
             provider: "LOCAL",
             otp,
             otpExpiry: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
         },
-    });
+    })
 
-    await sendOTPEmail(email, otp);
+    await sendOTPEmail(email, otp)
 
-    return { message: "OTP sent to your email." };
-};
+    return { message: "OTP sent to your email." }
+}
 
 export const verifyOTP = async (email: string, otp: string) => {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } })
 
-    if (!user) throw new AuthError("User not found", 404);
-    if (user.isVerified) throw new AuthError("Account already verified");
+    if (!user) throw new AuthError("User not found", 404)
+    if (user.isVerified) throw new AuthError("Account already verified")
 
-    if (!user.otp || !user.otpExpiry) throw new AuthError("Invalid OTP");
-    if (user.otp !== otp) throw new AuthError("Incorrect OTP");
-    if (user.otpExpiry < new Date()) throw new AuthError("OTP expired");
+    if (!user.otp || !user.otpExpiry) throw new AuthError("Invalid OTP")
+    if (user.otp !== otp) throw new AuthError("Incorrect OTP")
+    if (user.otpExpiry < new Date()) throw new AuthError("OTP expired")
 
     await prisma.$transaction(async (tx) => {
         await tx.user.update({
             where: { id: user.id },
             data: { isVerified: true, otp: null, otpExpiry: null },
-        });
+        })
 
         await tx.channel.create({
             data: {
-                name: user.username,
-                username: user.username,
+                name: user.name || user.username!,
+                username: user.username!,
                 userId: user.id,
             },
-        });
-    });
+        })
+    })
 
-    return { message: "Account verified successfully" };
-};
+    return { message: "Account verified successfully" }
+}
 
 export const loginUser = async (
     email: string,
     password: string,
     remember = false
 ) => {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } })
 
     if (!user || user.provider !== "LOCAL")
-        throw new AuthError("Invalid credentials", 401);
+        throw new AuthError("Invalid credentials", 401)
 
     if (!user.isVerified)
-        throw new AuthError("Please verify your email first", 403);
+        throw new AuthError("Please verify your email first", 403)
 
-    const match = await bcrypt.compare(password, user.password!);
+    const match = await bcrypt.compare(password, user.password!)
 
-    if (!match) throw new AuthError("Invalid credentials", 401);
+    if (!match) throw new AuthError("Invalid credentials", 401)
 
     const token = jwt.sign(
-        { sub: user.id, email: user.email },
+        { sub: user.id, email: user.email, name: user.name },
         JWT_SECRET,
         { expiresIn: remember ? "30d" : "1d" }
-    );
+    )
 
     return {
         token,
-        user: { id: user.id, email: user.email, username: user.username },
-    };
-};
+        user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            name: user.name,
+            avatarKey: user.avatarKey
+        },
+    }
+}
 
 export const generateResetToken = async (email: string) => {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } })
 
-    if (!user) throw new AuthError("User not found", 404);
+    if (!user) throw new AuthError("User not found", 404)
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const expiry = new Date(Date.now() + 60 * 60 * 1000);
+    const resetToken = crypto.randomBytes(32).toString("hex")
+    const expiry = new Date(Date.now() + 60 * 60 * 1000)
 
     await prisma.user.update({
         where: { id: user.id },
         data: { resetToken, resetTokenExp: expiry },
-    });
+    })
 
-    const resetLink = `${CLIENT_URL}/reset-password?token=${resetToken}`;
+    const resetLink = `${CLIENT_URL}/reset-password?token=${resetToken}`
 
-    await sendResetEmail(email, resetLink);
+    await sendResetEmail(email, resetLink)
 
-    return { message: "Reset instructions sent to your email" };
-};
+    return { message: "Reset instructions sent to your email" }
+}
 
-export const resetPassword = async (
-    token: string,
-    newPassword: string
-) => {
+export const resetPassword = async (token: string, newPassword: string) => {
     const user = await prisma.user.findFirst({
         where: { resetToken: token },
-    });
+    })
 
     if (!user || !user.resetTokenExp)
-        throw new AuthError("Invalid or expired reset token");
+        throw new AuthError("Invalid or expired reset token")
 
     if (new Date(user.resetTokenExp).getTime() <= Date.now())
-        throw new AuthError("Reset token expired");
+        throw new AuthError("Reset token expired")
 
     if (!newPassword || newPassword.length < 6)
-        throw new AuthError("Password must be at least 6 characters");
+        throw new AuthError("Password must be at least 6 characters")
 
-    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
 
     await prisma.user.update({
         where: { id: user.id },
         data: { password: hashedPassword, resetToken: null, resetTokenExp: null },
-    });
+    })
 
-    return { message: "Password reset successful" };
-};
+    return { message: "Password reset successful" }
+}

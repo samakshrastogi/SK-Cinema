@@ -15,7 +15,8 @@ model User {
   password String?
 
   googleId String? @unique
-  name String?
+
+  name String? @db.VarChar(120)
 
   avatarKey String?
 
@@ -35,6 +36,8 @@ model User {
   s3Credentials S3Credential[]
   videoActions  VideoAction[]
   playlists     Playlist[]
+
+  @@index([name])
 }
 
 model Channel {

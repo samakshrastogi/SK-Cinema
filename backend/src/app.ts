@@ -4,6 +4,8 @@ import session from "express-session"
 import passport from "passport"
 import { Strategy as GoogleStrategy } from "passport-google-oauth20"
 import jwt from "jsonwebtoken"
+import axios from "axios"
+import { PutObjectCommand } from "@aws-sdk/client-s3"
 
 import authRoutes from "./modules/auth/auth.routes"
 import userRoutes from "./modules/user/user.routes"
@@ -11,13 +13,20 @@ import videoRoutes from "./modules/video/video.routes"
 import channelRoutes from "./modules/channel/channel.routes"
 import aiRoutes from "./modules/ai/ai.routes"
 import videoActionRoutes from "./modules/video/video-action.routes"
+
 import { prisma } from "./config/prisma"
+import { s3 } from "./config/s3"
+
 import "./workers"
 
 const app = express()
 
 const JWT_SECRET = process.env.JWT_SECRET as string
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173"
+
+if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET not defined")
+}
 
 app.use(
     cors({
@@ -39,6 +48,8 @@ app.use(
 app.use(passport.initialize())
 app.use(passport.session())
 
+/* ---------------- GOOGLE OAUTH ---------------- */
+
 passport.use(
     new GoogleStrategy(
         {
@@ -47,22 +58,60 @@ passport.use(
             callbackURL: process.env.GOOGLE_CALLBACK_URL
         },
         async (_accessToken, _refreshToken, profile, done) => {
+
             try {
+
                 const email = profile.emails?.[0]?.value
                 const googleId = profile.id
                 const name = profile.displayName
-                const avatar = profile.photos?.[0]?.value
+                const avatarUrl = profile.photos?.[0]?.value
 
                 if (!email) {
                     return done(new Error("Google email not found"), false)
                 }
+
+                let avatarKey: string | null = null
+
+                /* ---------------- DOWNLOAD GOOGLE AVATAR ---------------- */
+
+                if (avatarUrl) {
+
+                    try {
+
+                        const response = await axios.get(avatarUrl, {
+                            responseType: "arraybuffer"
+                        })
+
+                        avatarKey = `avatars/google_${googleId}.jpg`
+
+                        await s3.send(
+                            new PutObjectCommand({
+                                Bucket: process.env.AWS_BUCKET!,
+                                Key: avatarKey,
+                                Body: response.data,
+                                ContentType: "image/jpeg"
+                            })
+                        )
+
+                    } catch (err) {
+
+                        console.error("Google avatar download failed:", err)
+
+                    }
+
+                }
+
+                /* ---------------- FIND USER ---------------- */
 
                 let user = await prisma.user.findUnique({
                     where: { email },
                     include: { channel: true }
                 })
 
+                /* ---------------- CREATE USER ---------------- */
+
                 if (!user) {
+
                     const username = email.split("@")[0]
 
                     user = await prisma.user.create({
@@ -71,7 +120,7 @@ passport.use(
                             username,
                             name,
                             googleId,
-                            avatarKey: avatar,
+                            avatarKey,
                             provider: "GOOGLE",
                             isVerified: true
                         }
@@ -84,18 +133,27 @@ passport.use(
                             userId: user.id
                         }
                     })
-                } else {
+
+                }
+
+                /* ---------------- UPDATE USER ---------------- */
+
+                else {
+
                     user = await prisma.user.update({
                         where: { id: user.id },
                         data: {
                             googleId,
                             name,
-                            avatarKey: avatar,
+                            avatarKey: avatarKey ?? user.avatarKey,
                             provider: "GOOGLE",
                             isVerified: true
                         }
                     })
+
                 }
+
+                /* ---------------- JWT TOKEN ---------------- */
 
                 const token = jwt.sign(
                     { sub: user.id, email: user.email },
@@ -104,12 +162,20 @@ passport.use(
                 )
 
                 return done(null, { token, user })
-            } catch (err) {
-                return done(err as Error, false)
+
             }
+
+            catch (err) {
+
+                return done(err as Error, false)
+
+            }
+
         }
     )
 )
+
+/* ---------------- PASSPORT SESSION ---------------- */
 
 passport.serializeUser((user: any, done) => {
     done(null, user)
@@ -119,12 +185,16 @@ passport.deserializeUser((user: any, done) => {
     done(null, user)
 })
 
+/* ---------------- ROUTES ---------------- */
+
 app.use("/api/auth", authRoutes)
 app.use("/api/user", userRoutes)
 app.use("/api/video", videoRoutes)
 app.use("/api/channel", channelRoutes)
 app.use("/api/ai", aiRoutes)
 app.use("/api/video-actions", videoActionRoutes)
+
+/* ---------------- HEALTH CHECK ---------------- */
 
 app.get("/", (_req, res) => {
     res.send("API is running...")

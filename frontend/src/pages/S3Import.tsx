@@ -51,7 +51,7 @@ const S3Import = () => {
     }, []);
 
     const fetchBuckets = async () => {
-        const res = await api.get("/video/s3/list");
+        const res = await api.get("/video/s3/buckets");
         setBuckets(res.data);
     };
 
@@ -59,7 +59,7 @@ const S3Import = () => {
 
     const handleAddBucket = async () => {
         try {
-            await api.post("/video/s3/add", bucketForm);
+            await api.post("/video/s3/buckets", bucketForm);
 
             alert("Bucket added successfully");
 
@@ -89,7 +89,7 @@ const S3Import = () => {
 
         try {
             setScanning(true);
-            const res = await api.get(`/video/s3/scan/${selectedBucket}`);
+            const res = await api.get(`/video/s3/buckets/${selectedBucket}/scan`);
             setFiles(res.data);
             setSelectedFiles([]);
         } catch (error: any) {

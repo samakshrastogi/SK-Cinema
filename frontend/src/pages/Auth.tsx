@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 const Auth = () => {
     const [mode, setMode] = useState<"login" | "register">("login");
     const [step, setStep] = useState<"form" | "otp">("form");
-
+    const [name, setName] = useState("")
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,7 +47,7 @@ const Auth = () => {
                 login(res.data!.token, res.data!.user, remember);
                 navigate("/home");
             } else {
-                const res = await registerUser(email, password, confirmPassword);
+                const res = await registerUser(name, email, password, confirmPassword);
                 if (!res.success) throw new Error(res.message);
 
                 setSuccessMessage("OTP sent to your email.");
@@ -195,6 +195,19 @@ const Auth = () => {
                     {step === "form" ? (
                         <form onSubmit={handleSubmit} className="space-y-5">
 
+                            {/* FULL NAME (REGISTER ONLY) */}
+                            {mode === "register" && (
+                                <input
+                                    type="text"
+                                    placeholder="Full Name"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none transition"
+                                />
+                            )}
+
+                            {/* EMAIL */}
                             <input
                                 type="email"
                                 placeholder="Email"
@@ -204,6 +217,7 @@ const Auth = () => {
                                 className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none transition"
                             />
 
+                            {/* PASSWORD */}
                             <input
                                 type="password"
                                 placeholder="Password"
@@ -213,19 +227,19 @@ const Auth = () => {
                                 className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none transition"
                             />
 
+                            {/* CONFIRM PASSWORD */}
                             {mode === "register" && (
                                 <input
                                     type="password"
                                     placeholder="Confirm Password"
                                     value={confirmPassword}
-                                    onChange={(e) =>
-                                        setConfirmPassword(e.target.value)
-                                    }
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
                                     required
                                     className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none"
                                 />
                             )}
 
+                            {/* LOGIN OPTIONS */}
                             {mode === "login" && (
                                 <div className="flex items-center justify-between text-sm">
 
@@ -248,6 +262,7 @@ const Auth = () => {
                                 </div>
                             )}
 
+                            {/* SUBMIT */}
                             <button
                                 type="submit"
                                 disabled={loading}
@@ -260,10 +275,12 @@ const Auth = () => {
                                         : "Register"}
                             </button>
 
+                            {/* DIVIDER */}
                             <div className="text-center text-gray-400 text-sm">
                                 OR
                             </div>
 
+                            {/* GOOGLE LOGIN */}
                             <button
                                 type="button"
                                 onClick={googleLogin}

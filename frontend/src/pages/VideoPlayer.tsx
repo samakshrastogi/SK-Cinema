@@ -78,16 +78,36 @@ const VideoPlayer = () => {
     }, [comments])
 
     const loadVideo = async () => {
-        const res = await api.get(`/video/${id}`)
-        setVideo(res.data)
 
-        const relatedRes = await api.get("/video/list")
+        try {
 
-        setRelated(
-            relatedRes.data.filter((v: any) => v.id !== Number(id))
-        )
+            const res = await api.get(`/video/${id}`)
+
+            if (!res.data?.success) {
+                console.error("Video not found")
+                return
+            }
+
+            const videoData = res.data.data
+
+            setVideo(videoData)
+
+            const relatedRes = await api.get("/video")
+
+            const allVideos = relatedRes.data?.data || []
+
+            setRelated(
+                allVideos.filter((v: any) => v.id !== Number(id))
+            )
+
+        } catch (error) {
+
+            console.error("Video load error", error)
+
+        }
+
     }
-
+    
     const loadActions = async () => {
 
         const res = await api.get(`/video-actions/video/${id}`)
@@ -336,8 +356,8 @@ const VideoPlayer = () => {
 
                                         <div
                                             className={`max-w-[70%] px-3 py-2 rounded-lg text-sm ${isMine
-                                                    ? "bg-purple-600 text-white"
-                                                    : "bg-black/40"
+                                                ? "bg-purple-600 text-white"
+                                                : "bg-black/40"
                                                 }`}
                                         >
 
@@ -402,8 +422,11 @@ const VideoPlayer = () => {
                                 >
 
                                     <img
-                                        src={`https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${item.thumbnailKey}`}
-                                        className="w-24 h-16 object-cover rounded-md"
+                                        src={
+                                            item.thumbnailKey
+                                                ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${item.thumbnailKey}`
+                                                : "/placeholder-thumbnail.png"
+                                        }
                                     />
 
                                     <p className="text-sm font-medium line-clamp-2">
@@ -435,8 +458,11 @@ const VideoPlayer = () => {
                                 >
 
                                     <img
-                                        src={`https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${item.thumbnailKey}`}
-                                        className="w-24 h-16 object-cover rounded-md"
+                                        src={
+                                            item.thumbnailKey
+                                                ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${item.thumbnailKey}`
+                                                : "/placeholder-thumbnail.png"
+                                        }
                                     />
 
                                     <p className="text-sm font-medium line-clamp-2">

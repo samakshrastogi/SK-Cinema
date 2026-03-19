@@ -193,8 +193,12 @@ export const getAllVideos = async () => {
 }
 
 export const getVideoById = async (id: number) => {
-    const video = await prisma.video.findUnique({
-        where: { id },
+
+    const video = await prisma.video.findFirst({
+        where: {
+            id,
+            status: "UPLOADED"
+        },
         include: {
             channel: {
                 select: {
@@ -219,6 +223,6 @@ export const getVideoById = async (id: number) => {
         createdAt: video.createdAt,
         thumbnailKey: video.thumbnailKey,
         signedUrl: signCloudFrontUrl(video.s3Key),
-        size: video.size
+        size: video.size.toString()
     }
 }
