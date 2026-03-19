@@ -21,8 +21,8 @@ import "./workers"
 
 const app = express()
 
-const JWT_SECRET = process.env.JWT_SECRET as string
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173"
+const JWT_SECRET = process.env.JWT_SECRET!
+const CLIENT_URL = process.env.CLIENT_URL!
 
 if (!JWT_SECRET) {
     throw new Error("JWT_SECRET not defined")
@@ -41,7 +41,10 @@ app.use(
     session({
         secret: JWT_SECRET,
         resave: false,
-        saveUninitialized: false
+        saveUninitialized: false,
+        cookie: {
+            secure: process.env.NODE_ENV === "production"
+        }
     })
 )
 
@@ -57,7 +60,7 @@ passport.use(
             clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
             callbackURL: process.env.GOOGLE_CALLBACK_URL
         },
-        async (_accessToken, _refreshToken, profile, done) => {
+        async (_accessToken: string, _refreshToken: string, profile: any, done: any) => {
 
             try {
 
@@ -123,6 +126,9 @@ passport.use(
                             avatarKey,
                             provider: "GOOGLE",
                             isVerified: true
+                        },
+                        include: {
+                            channel: true
                         }
                     })
 
@@ -148,6 +154,9 @@ passport.use(
                             avatarKey: avatarKey ?? user.avatarKey,
                             provider: "GOOGLE",
                             isVerified: true
+                        },
+                        include: {
+                            channel: true
                         }
                     })
 
