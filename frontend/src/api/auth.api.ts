@@ -1,7 +1,5 @@
 import { api } from "./axios"
 
-/* ================= TYPES ================= */
-
 interface ApiResponse<T = unknown> {
     success: boolean
     message?: string
@@ -19,89 +17,65 @@ export interface LoginData {
     }
 }
 
-/* ================= REGISTER ================= */
-
 export const registerUser = async (
     name: string,
     email: string,
     password: string,
     confirmPassword: string
 ): Promise<ApiResponse> => {
-
-    const response = await api.post("/auth/register", {
+    const { data } = await api.post("/auth/register", {
         name,
         email,
         password,
         confirmPassword,
     })
-
-    return response.data
+    return data
 }
-
-/* ================= VERIFY OTP ================= */
 
 export const verifyOTP = async (
     email: string,
     otp: string
 ): Promise<ApiResponse> => {
-
-    const response = await api.post("/auth/verify-otp", {
+    const { data } = await api.post("/auth/verify-otp", {
         email,
         otp,
     })
-
-    return response.data
+    return data
 }
-
-/* ================= LOGIN ================= */
 
 export const loginUser = async (
     email: string,
     password: string,
     remember: boolean
 ): Promise<ApiResponse<LoginData>> => {
-
-    const response = await api.post("/auth/login", {
+    const { data } = await api.post("/auth/login", {
         email,
         password,
         remember,
     })
-
-    return response.data
+    return data
 }
-
-/* ================= FORGOT PASSWORD ================= */
 
 export const forgotPassword = async (
     email: string
 ): Promise<ApiResponse> => {
-
-    const response = await api.post("/auth/forgot-password", {
+    const { data } = await api.post("/auth/forgot-password", {
         email,
     })
-
-    return response.data
+    return data
 }
-
-/* ================= RESET PASSWORD ================= */
 
 export const resetPassword = async (
     token: string,
     newPassword: string
 ): Promise<ApiResponse> => {
-
-    const response = await api.post("/auth/reset-password", {
+    const { data } = await api.post("/auth/reset-password", {
         token,
         newPassword,
     })
-
-    return response.data
+    return data
 }
 
-/* ================= GOOGLE LOGIN ================= */
-
 export const googleLogin = () => {
-
     window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`
-
 }

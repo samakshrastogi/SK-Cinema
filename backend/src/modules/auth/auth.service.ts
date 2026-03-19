@@ -5,12 +5,14 @@ import nodemailer from "nodemailer"
 import { prisma } from "../../config/prisma"
 
 const JWT_SECRET = process.env.JWT_SECRET as string
-const EMAIL_USER = process.env.EMAIL_USER as string
-const EMAIL_PASS = process.env.EMAIL_PASS as string
 const CLIENT_URL = process.env.CLIENT_URL
-
 if (!JWT_SECRET) throw new Error("JWT_SECRET not defined")
-if (!EMAIL_USER || !EMAIL_PASS) throw new Error("Email credentials missing")
+const BREVO_USER = process.env.BREVO_USER as string
+const BREVO_PASS = process.env.BREVO_PASS as string
+
+if (!BREVO_USER || !BREVO_PASS)
+    throw new Error("Brevo SMTP credentials missing")
+
 
 const SALT_ROUNDS = 12
 const OTP_EXPIRY_MINUTES = 10
@@ -26,10 +28,12 @@ class AuthError extends Error {
 /* ---------------- EMAIL TRANSPORT ---------------- */
 
 const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp-relay.brevo.com",
+    port: 587,
+    secure: false,
     auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS,
+        user: process.env.BREVO_USER,
+        pass: process.env.BREVO_PASS,
     },
 })
 
@@ -140,7 +144,7 @@ const sendOTPEmail = async (email: string, otp: string) => {
   `
 
     await transporter.sendMail({
-        from: `"SK Cinema" <${EMAIL_USER}>`,
+        from: `"SK Cinema" <${BREVO_USER}>`,
         to: email,
         subject: "Verify your SK Cinema account",
         html: renderEmailLayout("Verify your account", body, {
@@ -162,7 +166,7 @@ const sendResetEmail = async (email: string, resetLink: string) => {
   `
 
     await transporter.sendMail({
-        from: `"SK Cinema" <${EMAIL_USER}>`,
+        from: `"SK Cinema" <${BREVO_USER}>`,
         to: email,
         subject: "Reset your SK Cinema password",
         html: renderEmailLayout("Reset your password", body, {
