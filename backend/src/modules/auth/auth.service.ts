@@ -7,7 +7,7 @@ import { prisma } from "../../config/prisma"
 const JWT_SECRET = process.env.JWT_SECRET as string
 const EMAIL_USER = process.env.EMAIL_USER as string
 const EMAIL_PASS = process.env.EMAIL_PASS as string
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173"
+const CLIENT_URL = process.env.CLIENT_URL
 
 if (!JWT_SECRET) throw new Error("JWT_SECRET not defined")
 if (!EMAIL_USER || !EMAIL_PASS) throw new Error("Email credentials missing")

@@ -10,7 +10,7 @@ import {
 
 const router = Router()
 
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173"
+const CLIENT_URL = process.env.CLIENT_URL
 
 router.post("/register", register)
 router.post("/verify-otp", verifyEmailOTP)
