@@ -26,11 +26,11 @@ export const applyAISuggestionService = async (videoId: number) => {
         throw new Error("AI metadata not found");
     }
 
+    // ✅ Only update fields that EXIST in Video model
     const video = await prisma.video.update({
         where: { id: videoId },
         data: {
-            title: videoAI.aiTitle || undefined,
-            description: videoAI.aiDescription || undefined,
+            title: videoAI.aiTitle ?? undefined,
         },
     });
 

@@ -1,13 +1,13 @@
-import { Queue } from "bullmq"
-import { redisConnection } from "../config/redis"
+import { Queue } from "bullmq";
 
 /* ---------------- QUEUE ---------------- */
 
 export const videoAIQueue = new Queue("videoAIQueue", {
-    connection: redisConnection,
+    connection: {
+        url: process.env.REDIS_URL!
+    },
 
     defaultJobOptions: {
-
         attempts: 3,
 
         backoff: {
@@ -21,22 +21,20 @@ export const videoAIQueue = new Queue("videoAIQueue", {
 
         removeOnFail: {
             age: 24 * 3600 // 24 hours
-        },
-
-        timeout: 10 * 60 * 1000 // 10 minutes
+        }
     }
-})
+});
 
 /* ---------------- ADD AI JOB ---------------- */
 
 export const addVideoAIJob = async (videoId: number) => {
 
-    const jobId = `video-ai-${videoId}`
+    const jobId = `video-ai-${videoId}`;
 
-    const existingJob = await videoAIQueue.getJob(jobId)
+    const existingJob = await videoAIQueue.getJob(jobId);
 
     if (existingJob) {
-        return existingJob
+        return existingJob;
     }
 
     const job = await videoAIQueue.add(
@@ -46,9 +44,9 @@ export const addVideoAIJob = async (videoId: number) => {
             jobId,
             priority: 1
         }
-    )
+    );
 
-    console.log("AI job queued:", jobId)
+    console.log("AI job queued:", jobId);
 
-    return job
-}
+    return job;
+};
