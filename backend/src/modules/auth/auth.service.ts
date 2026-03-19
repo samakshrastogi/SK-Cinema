@@ -199,9 +199,13 @@ export const registerUser = async (
         },
     })
 
-    await sendOTPEmail(email, otp)
+    const response = { message: "OTP sent to your email." }
 
-    return { message: "OTP sent to your email." }
+    sendOTPEmail(email, otp).catch((err) => {
+        console.error("Email failed:", err)
+    })
+
+    return response
 }
 
 export const verifyOTP = async (email: string, otp: string) => {
@@ -282,9 +286,13 @@ export const generateResetToken = async (email: string) => {
 
     const resetLink = `${CLIENT_URL}/reset-password?token=${resetToken}`
 
-    await sendResetEmail(email, resetLink)
+    const response = { message: "Reset instructions sent to your email" }
 
-    return { message: "Reset instructions sent to your email" }
+    sendResetEmail(email, resetLink).catch(err => {
+        console.error("Reset email failed:", err)
+    })
+
+    return response
 }
 
 export const resetPassword = async (token: string, newPassword: string) => {
