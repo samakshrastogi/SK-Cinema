@@ -2,6 +2,7 @@ import bcrypt from "bcrypt"
 import jwt from "jsonwebtoken"
 import crypto from "crypto"
 import nodemailer from "nodemailer"
+import SMTPTransport from "nodemailer/lib/smtp-transport"
 import { prisma } from "../../config/prisma"
 
 const JWT_SECRET = process.env.JWT_SECRET as string
@@ -32,10 +33,17 @@ const transporter = nodemailer.createTransport({
     port: 587,
     secure: false,
     auth: {
-        user: process.env.BREVO_USER,
-        pass: process.env.BREVO_PASS,
+        user: BREVO_USER,
+        pass: BREVO_PASS,
     },
-})
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+    family: 4,
+    tls: {
+        rejectUnauthorized: false,
+    },
+} as SMTPTransport.Options)
 
 transporter.verify((err, success) => {
     if (err) {
