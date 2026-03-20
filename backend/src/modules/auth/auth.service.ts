@@ -4,7 +4,7 @@ import crypto from "crypto"
 import nodemailer from "nodemailer"
 import SMTPTransport from "nodemailer/lib/smtp-transport"
 import { prisma } from "../../config/prisma"
-
+const EMAIL_FROM = process.env.EMAIL_FROM as string
 const JWT_SECRET = process.env.JWT_SECRET as string
 const CLIENT_URL = process.env.CLIENT_URL
 if (!JWT_SECRET) throw new Error("JWT_SECRET not defined")
@@ -157,7 +157,7 @@ const sendOTPEmail = async (email: string, otp: string) => {
   `
 
     await transporter.sendMail({
-        from: `"SK Cinema" <${BREVO_USER}>`,
+        from: `"SK Cinema" <${EMAIL_FROM}>`,
         to: email,
         subject: "Verify your SK Cinema account",
         html: renderEmailLayout("Verify your account", body, {
