@@ -30,20 +30,25 @@ class AuthError extends Error {
 
 const transporter = nodemailer.createTransport({
     host: "smtp-relay.brevo.com",
-    port: 587,
+    port: 2525,
     secure: false,
     auth: {
         user: BREVO_USER,
         pass: BREVO_PASS,
     },
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
+    requireTLS: true,
+    connectionTimeout: 20000,
+    greetingTimeout: 15000,
     socketTimeout: 20000,
     family: 4,
     tls: {
+        minVersion: "TLSv1.2",
         rejectUnauthorized: false,
     },
+    debug: true,
+    logger: true,
 } as SMTPTransport.Options)
+transporter.on("error", console.error)
 
 transporter.verify((err, success) => {
     if (err) {

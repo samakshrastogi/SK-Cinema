@@ -27,7 +27,7 @@
     "jsonwebtoken": "^9.0.3",
     "jwt-decode": "^4.0.0",
     "multer": "^2.0.2",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^8.0.3",
     "ollama": "^0.6.3",
     "openai": "^6.27.0",
     "passport": "^0.7.0",
