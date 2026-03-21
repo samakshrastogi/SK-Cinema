@@ -4,14 +4,13 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import ffmpeg from "fluent-ffmpeg"
-import { exec } from "child_process"
-import axios from "axios"
 import { s3 } from "../config/s3"
 import { GetObjectCommand } from "@aws-sdk/client-s3"
 import { pipeline } from "stream/promises"
 import { redisConnection } from "../config/redis"
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg"
 
-ffmpeg.setFfmpegPath("ffmpeg")
+ffmpeg.setFfmpegPath(ffmpegInstaller.path)
 
 const extractAudio = (videoPath: string, audioPath: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -24,42 +23,29 @@ const extractAudio = (videoPath: string, audioPath: string): Promise<void> => {
     })
 }
 
-const runWhisper = (audioPath: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
+import OpenAI from "openai"
 
-        const outputDir = os.tmpdir()
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+})
 
-        exec(
-            `whisper "${audioPath}" --model base --output_format txt --output_dir "${outputDir}"`,
-            (error) => {
-
-                if (error) {
-                    reject(error)
-                    return
-                }
-
-                const transcriptFile = path.join(
-                    outputDir,
-                    path.basename(audioPath).replace(".mp3", ".txt")
-                )
-
-                if (!fs.existsSync(transcriptFile)) {
-                    reject(new Error("Transcript file not generated"))
-                    return
-                }
-
-                const transcript = fs.readFileSync(transcriptFile, "utf-8")
-                resolve(transcript)
-            }
-        )
-
+const runWhisper = async (audioPath: string): Promise<string> => {
+    const res = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(audioPath),
+        model: "gpt-4o-mini-transcribe"
     })
+
+    return res.text
 }
 
-const runOllama = async (transcript: string) => {
-
-    const prompt = `
-Return ONLY valid JSON.
+const runLLM = async (transcript: string) => {
+    const res = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+            {
+                role: "user",
+                content: `
+Return ONLY valid JSON:
 
 {
 "title":"string",
@@ -71,21 +57,12 @@ Return ONLY valid JSON.
 Transcript:
 ${transcript}
 `
-
-    const response = await axios.post(
-        "http://localhost:11434/api/generate",
-        {
-            model: "phi3",
-            prompt,
-            stream: false,
-            options: {
-                temperature: 0,
-                num_predict: 600
             }
-        }
-    )
+        ],
+        temperature: 0
+    })
 
-    return response.data.response
+    return res.choices[0].message.content || ""
 }
 
 const extractJSON = (text: string) => {
@@ -181,9 +158,9 @@ const processVideoAI = async (job: Job) => {
 
         console.log("Generating metadata")
 
-        const rawResponse = await runOllama(shortenTranscript(transcript))
+        const rawResponse = await runLLM(shortenTranscript(transcript))
 
-        console.log("OLLAMA RAW:", rawResponse)
+        console.log("LLM RAW:", rawResponse)
 
         const parsed = extractJSON(rawResponse)
 

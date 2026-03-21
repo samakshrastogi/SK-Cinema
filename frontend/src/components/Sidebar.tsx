@@ -24,7 +24,7 @@ const Sidebar = () => {
             {/* Toggle */}
             <button
                 onClick={toggleSidebar}
-                className="mb-8 p-2 bg-white/10 rounded-lg hover:bg-white/20 transition"
+                className="mb-8 p-2 bg-white/10 rounded-lg hover:bg-white/20 transition" aria-label="Toggle sidebar"
             >
                 <Menu size={20} />
             </button>
