@@ -65,17 +65,27 @@ const Upload = () => {
         })
 
         socket.on("ai-progress", ({ videoId, progress }) => {
+            console.log("📡 SOCKET EVENT →", { videoId, progress });
 
-            setQueue(prev =>
-                prev.map(item =>
-                    item.videoId === videoId
+            setQueue(prev => {
+                console.log("📦 CURRENT QUEUE →", prev);
+
+                return prev.map(item => {
+                    const match =
+                        String(item.videoId) === String(videoId);
+
+                    console.log("🔍 MATCH CHECK →", {
+                        itemVideoId: item.videoId,
+                        incomingVideoId: videoId,
+                        match,
+                    });
+
+                    return match
                         ? { ...item, aiProgress: progress }
-                        : item
-                )
-            )
-
-        })
-
+                        : item;
+                });
+            });
+        });
         socket.on("ai-completed", async ({ videoId }) => {
 
             if (!videoId) return
@@ -112,7 +122,7 @@ const Upload = () => {
 
             setQueue(prev =>
                 prev.map(item =>
-                    item.videoId === videoId
+                    String(item.videoId) === String(videoId)
                         ? { ...item, status: "error" }
                         : item
                 )
@@ -232,82 +242,103 @@ const Upload = () => {
     /* ---------------- SINGLE UPLOAD ---------------- */
 
     const uploadSingle = async (index: number) => {
-
-        const item = queue[index]
+        const item = queue[index];
 
         try {
+            updateItem(index, { status: "uploading" });
 
-            updateItem(index, { status: "uploading" })
+            /* ---------- 1. GET PRESIGNED URL ---------- */
 
-            const presignRes = await api.post("/video/presign", {
+            const presignRes = await api.post("/video/upload/presign", {
                 fileName: item.file.name,
-                fileType: item.file.type
-            })
+                fileType: item.file.type,
+            });
+            console.log("FULL PRESIGN RESPONSE:", presignRes)
+            console.log("DATA LEVEL 1:", presignRes.data)
+            console.log("DATA LEVEL 2:", presignRes.data.data)
+            console.log("UPLOAD URL VALUE:", presignRes.data?.data?.url)
+            console.log("KEY VALUE:", presignRes.data?.data?.key)
 
-            const { uploadUrl, key } = presignRes.data
+            const { uploadUrl, key } = presignRes.data.data;
 
-            const startTime = Date.now()
+            /* ---------- 2. UPLOAD FILE ---------- */
+
+            const startTime = Date.now();
 
             await axios.put(uploadUrl, item.file, {
-
                 headers: { "Content-Type": item.file.type },
 
-                onUploadProgress: event => {
-
-                    if (!event.total) return
+                onUploadProgress: (event) => {
+                    if (!event.total) return;
 
                     const percent = Math.round(
                         (event.loaded * 100) / event.total
-                    )
+                    );
 
                     const elapsed = Math.max(
                         (Date.now() - startTime) / 1000,
                         1
-                    )
+                    );
 
                     const speed =
-                        event.loaded / 1024 / 1024 / elapsed
+                        event.loaded / 1024 / 1024 / elapsed;
 
                     updateItem(index, {
                         uploadProgress: percent,
-                        speed
-                    })
+                        speed,
+                    });
+                },
+            });
 
-                }
+            /* ---------- 3. COMPLETE UPLOAD ---------- */
 
-            })
-
-            const completeRes = await api.post("/video/complete", {
-
+            const completeRes = await api.post("/video/upload/complete", {
                 key,
                 title: item.title,
                 description: item.description,
                 tags: item.tags
                     .split(",")
-                    .map(t => t.trim())
+                    .map((t) => t.trim())
                     .filter(Boolean),
-
                 duration: item.duration,
-                size: item.file.size
+                size: item.file.size,
+            });
 
-            })
+            const videoId = completeRes.data.data.id;
+            console.log("✅ VIDEO CREATED →", {
+                index,
+                videoId,
+            });
 
-            const videoId = completeRes.data.id
+            /* ---------- 4. FINAL STATE ---------- */
+
+            setQueue(prev => {
+                console.log("🛠️ SETTING VIDEO ID →", {
+                    index,
+                    videoId,
+                    prev,
+                });
+
+                return prev.map((item, i) =>
+                    i === index
+                        ? {
+                            ...item,
+                            videoId,
+                            status: "processing",
+                            uploadProgress: 100,
+                        }
+                        : item
+                );
+            });
+
+        } catch (err) {
+            console.error("Upload failed:", err);
 
             updateItem(index, {
-                status: "processing",
-                uploadProgress: 100,
-                videoId
-            })
-
-        } catch {
-
-            updateItem(index, { status: "error" })
-
+                status: "error",
+            });
         }
-
-    }
-
+    };
     /* ---------------- LOADING ---------------- */
 
     if (loadingChannel) {

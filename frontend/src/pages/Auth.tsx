@@ -231,27 +231,31 @@ const Auth = () => {
                                 className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none transition"
                             />
 
-                            {/* PASSWORD */}
-                            <input
-                                type="password"
-                                placeholder="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none transition"
-                            />
+                            {/* PASSWORD ROW */}
+                            <div className={`${mode === "register" ? "flex gap-4" : ""}`}>
 
-                            {/* CONFIRM PASSWORD */}
-                            {mode === "register" && (
+                                {/* PASSWORD */}
                                 <input
                                     type="password"
-                                    placeholder="Confirm Password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    placeholder="Password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="w-full px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none"
+                                    className={`px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none transition ${mode === "register" ? "w-1/2" : "w-full"}`}
                                 />
-                            )}
+
+                                {/* CONFIRM PASSWORD */}
+                                {mode === "register" && (
+                                    <input
+                                        type="password"
+                                        placeholder="Confirm Password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        required
+                                        className="w-1/2 px-4 py-3 rounded-xl bg-black/50 border border-gray-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40 outline-none"
+                                    />
+                                )}
+                            </div>
 
                             {/* LOGIN OPTIONS */}
                             {mode === "login" && (
