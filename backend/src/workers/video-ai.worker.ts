@@ -10,6 +10,7 @@ import { s3 } from "../config/s3"
 import { GetObjectCommand } from "@aws-sdk/client-s3"
 import { pipeline } from "stream/promises"
 import { redisConnection } from "../config/redis"
+import FormData from "form-data"
 
 ffmpeg.setFfmpegPath("ffmpeg")
 
@@ -24,85 +25,6 @@ const extractAudio = (videoPath: string, audioPath: string): Promise<void> => {
     })
 }
 
-const runWhisper = (audioPath: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-
-        const outputDir = os.tmpdir()
-
-        exec(
-            `whisper "${audioPath}" --model base --output_format txt --output_dir "${outputDir}"`,
-            { timeout: 1000 * 60 * 10 },
-            (error) => {
-
-                if (error) {
-                    reject(error)
-                    return
-                }
-
-                const transcriptFile = path.join(
-                    outputDir,
-                    path.basename(audioPath).replace(".mp3", ".txt")
-                )
-
-                if (!fs.existsSync(transcriptFile)) {
-                    reject(new Error("Transcript file not generated"))
-                    return
-                }
-
-                const transcript = fs.readFileSync(transcriptFile, "utf-8")
-                resolve(transcript)
-            }
-        )
-
-    })
-}
-
-const runOllama = async (transcript: string) => {
-    try {
-
-        const prompt = `
-You are a strict JSON generator.
-
-Return ONLY valid JSON. No explanation. No text outside JSON.
-
-Format:
-{
-  "title": "string",
-  "description": "string",
-  "keywords": ["string"],
-  "tags": ["string"]
-}
-
-Rules:
-- Title must be short and catchy
-- Description must be 2-3 sentences
-- Keywords = 5 relevant words
-- Tags = 5 short tags
-
-Transcript:
-${transcript}
-`
-
-        const response = await axios.post(
-            "http://localhost:11434/api/generate",
-            {
-                model: "phi3",
-                prompt,
-                stream: false,
-                options: {
-                    temperature: 0,
-                    num_predict: 600
-                }
-            }
-        )
-
-        return response.data.response
-
-    } catch (err) {
-        console.error("Ollama failed:", err)
-        return "{}"
-    }
-}
 
 const extractJSON = (text: string) => {
 
@@ -189,15 +111,55 @@ const processVideoAI = async (job: Job) => {
 
         await updateProgress(45)
 
-        console.log("Running whisper")
+        console.log("Calling remote Whisper via AI server")
 
-        const transcript = await runWhisper(tempAudioPath)
+        const form = new FormData()
+        form.append("file", fs.createReadStream(tempAudioPath))
+
+        const whisperRes = await axios.post(
+            `${process.env.AI_SERVER_URL}/transcribe`,
+            form,
+            {
+                headers: form.getHeaders(),
+                maxBodyLength: Infinity
+            }
+        )
+
+        const transcript = whisperRes.data.transcript
 
         await updateProgress(65)
 
-        console.log("Generating metadata")
+        console.log("Calling remote Ollama via AI server")
 
-        const rawResponse = await runOllama(shortenTranscript(transcript))
+        const rawResponseRes = await axios.post(
+            `${process.env.AI_SERVER_URL}/generate`,
+            {
+                prompt: `
+You are a strict JSON generator.
+
+Return ONLY valid JSON. No explanation. No text outside JSON.
+
+Format:
+{
+  "title": "string",
+  "description": "string",
+  "keywords": ["string"],
+  "tags": ["string"]
+}
+
+Rules:
+- Title must be short and catchy
+- Description must be 2-3 sentences
+- Keywords = 5 relevant words
+- Tags = 5 short tags
+
+Transcript:
+${shortenTranscript(transcript)}
+`
+            }
+        )
+
+        const rawResponse = rawResponseRes.data.response
 
         console.log("OLLAMA RAW:", rawResponse)
 
@@ -264,7 +226,7 @@ const worker = new Worker(
     processVideoAI,
     {
         connection: redisConnection as any,
-        concurrency: 3,
+        concurrency: 1,
         limiter: {
             max: 10,
             duration: 1000
