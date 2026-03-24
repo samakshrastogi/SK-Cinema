@@ -4,13 +4,14 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import ffmpeg from "fluent-ffmpeg"
+import { exec } from "child_process"
+import axios from "axios"
 import { s3 } from "../config/s3"
 import { GetObjectCommand } from "@aws-sdk/client-s3"
 import { pipeline } from "stream/promises"
 import { redisConnection } from "../config/redis"
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg"
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path)
+ffmpeg.setFfmpegPath("ffmpeg")
 
 const extractAudio = (videoPath: string, audioPath: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -23,46 +24,84 @@ const extractAudio = (videoPath: string, audioPath: string): Promise<void> => {
     })
 }
 
-import OpenAI from "openai"
+const runWhisper = (audioPath: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-})
+        const outputDir = os.tmpdir()
 
-const runWhisper = async (audioPath: string): Promise<string> => {
-    const res = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(audioPath),
-        model: "gpt-4o-mini-transcribe"
+        exec(
+            `whisper "${audioPath}" --model base --output_format txt --output_dir "${outputDir}"`,
+            { timeout: 1000 * 60 * 10 },
+            (error) => {
+
+                if (error) {
+                    reject(error)
+                    return
+                }
+
+                const transcriptFile = path.join(
+                    outputDir,
+                    path.basename(audioPath).replace(".mp3", ".txt")
+                )
+
+                if (!fs.existsSync(transcriptFile)) {
+                    reject(new Error("Transcript file not generated"))
+                    return
+                }
+
+                const transcript = fs.readFileSync(transcriptFile, "utf-8")
+                resolve(transcript)
+            }
+        )
+
     })
-
-    return res.text
 }
 
-const runLLM = async (transcript: string) => {
-    const res = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-            {
-                role: "user",
-                content: `
-Return ONLY valid JSON:
+const runOllama = async (transcript: string) => {
+    try {
 
+        const prompt = `
+You are a strict JSON generator.
+
+Return ONLY valid JSON. No explanation. No text outside JSON.
+
+Format:
 {
-"title":"string",
-"description":"string",
-"keywords":["string"],
-"tags":["string"]
+  "title": "string",
+  "description": "string",
+  "keywords": ["string"],
+  "tags": ["string"]
 }
+
+Rules:
+- Title must be short and catchy
+- Description must be 2-3 sentences
+- Keywords = 5 relevant words
+- Tags = 5 short tags
 
 Transcript:
 ${transcript}
 `
-            }
-        ],
-        temperature: 0
-    })
 
-    return res.choices[0].message.content || ""
+        const response = await axios.post(
+            "http://localhost:11434/api/generate",
+            {
+                model: "phi3",
+                prompt,
+                stream: false,
+                options: {
+                    temperature: 0,
+                    num_predict: 600
+                }
+            }
+        )
+
+        return response.data.response
+
+    } catch (err) {
+        console.error("Ollama failed:", err)
+        return "{}"
+    }
 }
 
 const extractJSON = (text: string) => {
@@ -158,9 +197,9 @@ const processVideoAI = async (job: Job) => {
 
         console.log("Generating metadata")
 
-        const rawResponse = await runLLM(shortenTranscript(transcript))
+        const rawResponse = await runOllama(shortenTranscript(transcript))
 
-        console.log("LLM RAW:", rawResponse)
+        console.log("OLLAMA RAW:", rawResponse)
 
         const parsed = extractJSON(rawResponse)
 
