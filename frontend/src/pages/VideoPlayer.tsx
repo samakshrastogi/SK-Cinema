@@ -208,7 +208,7 @@ const VideoPlayer = () => {
             </div>
         )
     }
-
+    console.log("BUILD VERSION 2")
 
     return (
 
