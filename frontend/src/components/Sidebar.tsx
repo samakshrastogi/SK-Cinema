@@ -1,104 +1,54 @@
-import { Home, Compass, Film, Heart, Menu, User } from "lucide-react"
-import { useNavigate } from "react-router-dom"
-import { useLayout } from "@/context/LayoutContext"
+import { Home, Compass, Film, Heart, User } from "lucide-react"
+import { useNavigate, useLocation } from "react-router-dom"
 
 const Sidebar = () => {
-
-    const { sidebarOpen, toggleSidebar } = useLayout()
     const navigate = useNavigate()
+    const location = useLocation()
+
+    const items = [
+        { icon: Home, path: "/home" },
+        { icon: Film, path: "/playlists" },
+        { icon: Heart, path: "/favorites" },
+        { icon: User, path: "/profile" },
+        { icon: Compass, path: "/explore" },
+    ]
 
     return (
-
         <aside
-            className={`
-        fixed top-0 left-0 z-40
-        ${sidebarOpen ? "md:w-64" : "md:w-20"}
-        w-64
-        h-screen
-        transition-all duration-300
-        bg-white/5 backdrop-blur-xl border-r border-white/10
-        p-6
-      `}
-        >
-
-            {/* Toggle */}
-            <button
-                onClick={toggleSidebar}
-                className="mb-8 p-2 bg-white/10 rounded-lg hover:bg-white/20 transition" aria-label="Toggle sidebar"
-            >
-                <Menu size={20} />
-            </button>
-
-            <nav className="space-y-6">
-
-                <SidebarItem
-                    icon={<Home size={20} />}
-                    label="Home"
-                    open={sidebarOpen}
-                    onClick={() => navigate("/home")}
-                />
-
-                <SidebarItem
-                    icon={<Film size={20} />}
-                    label="Playlists"
-                    open={sidebarOpen}
-                    onClick={() => navigate("/playlists")}
-                />
-
-                <SidebarItem
-                    icon={<Heart size={20} />}
-                    label="Favorites"
-                    open={sidebarOpen}
-                    onClick={() => navigate("/favorites")}
-                />
-
-                <SidebarItem
-                    icon={<User size={20} />}
-                    label="Profile"
-                    open={sidebarOpen}
-                    onClick={() => navigate("/profile")}
-                />
-
-                <SidebarItem
-                    icon={<Compass size={20} />}
-                    label="Explore"
-                    open={sidebarOpen}
-                />
-
-            </nav>
-
-        </aside>
-
-    )
-}
-
-interface ItemProps {
-    icon: React.ReactNode
-    label: string
-    open: boolean
-    onClick?: () => void
-}
-
-const SidebarItem = ({ icon, label, open, onClick }: ItemProps) => {
-
-    return (
-        <div
-            onClick={onClick}
             className="
-        flex items-center gap-4
-        text-gray-300 hover:text-white
-        cursor-pointer transition
+        fixed left-4 top-1/2 -translate-y-1/2 z-40
+        hidden md:flex flex-col items-center gap-4
+
+        bg-white/10 backdrop-blur-xl
+        border border-white/10
+        rounded-2xl
+
+        px-2 py-4
+        shadow-[0_0_25px_rgba(0,0,0,0.3)]
       "
         >
-            {icon}
+            {items.map(({ icon: Icon, path }) => {
+                const active = location.pathname === path
 
-            {open && (
-                <span className="text-sm">
-                    {label}
-                </span>
-            )}
+                return (
+                    <button
+                        key={path}
+                        aria-label="h"
+                        onClick={() => navigate(path)}
+                        className={`
+              p-3 rounded-xl transition-all duration-300
 
-        </div>
+              ${active
+                                ? "bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.25)] scale-105"
+                                : "text-gray-300 hover:text-white hover:bg-white/10 hover:scale-110"
+                            }
+            `}
+                    >
+                        <Icon size={20} />
+                    </button>
+                )
+            })}
+        </aside>
     )
 }
 

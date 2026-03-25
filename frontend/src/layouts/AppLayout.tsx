@@ -1,9 +1,10 @@
-import Sidebar from "@/components/Sidebar";
-import Topbar from "@/components/Topbar";
-import { useLayout } from "@/context/LayoutContext";
+import Sidebar from "@/components/Sidebar"
+import Topbar from "@/components/Topbar"
+import MobileBottomNav from "@/components/MobileBottomNav"
+import { useLayout } from "@/context/LayoutContext"
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
-    const { sidebarOpen } = useLayout();
+    const { sidebarOpen } = useLayout()
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white">
@@ -18,9 +19,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <main
                 className={`
           pt-[80px]
-          px-6 pb-10
+          px-4 md:px-6
+          pb-20 md:pb-10
           transition-all duration-300
-          ${sidebarOpen ? "ml-64" : "ml-20"}
+
+          ml-0
+          ${sidebarOpen ? "md:ml-64" : "md:ml-20"}
         `}
             >
                 <div className="max-w-7xl mx-auto space-y-8">
@@ -28,8 +32,11 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 </div>
             </main>
 
-        </div>
-    );
-};
+            {/* ✅ Mobile Bottom Navigation */}
+            <MobileBottomNav />
 
-export default AppLayout;
+        </div>
+    )
+}
+
+export default AppLayout
