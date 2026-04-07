@@ -67,7 +67,8 @@ export const completeUpload = async (
     userId: number,
     key: string,
     title: string,
-    size: number
+    size: number,
+    visibility?: "PUBLIC" | "PRIVATE" // ✅ NEW
 ) => {
     const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -91,7 +92,8 @@ export const completeUpload = async (
             size: BigInt(size),
             uploadSource: "MANUAL",
             status: "UPLOADED",
-            channelId: user.channel.id
+            channelId: user.channel.id,
+            visibility: visibility || "PUBLIC" // ✅ CORE LOGIC
         }
     })
 
@@ -164,7 +166,10 @@ export const scanS3Videos = async (userId: number) => {
 
 export const getAllVideos = async () => {
     const videos = await prisma.video.findMany({
-        where: { status: "UPLOADED" },
+        where: {
+            status: "UPLOADED",
+            visibility: "PUBLIC" // ✅ IMPORTANT
+        },
         include: {
             channel: {
                 select: {
@@ -192,7 +197,7 @@ export const getAllVideos = async () => {
     }))
 }
 
-export const getVideoById = async (id: number) => {
+export const getVideoById = async (id: number, userId?: number) => {
 
     const video = await prisma.video.findFirst({
         where: {
@@ -203,15 +208,22 @@ export const getVideoById = async (id: number) => {
             channel: {
                 select: {
                     name: true,
-                    username: true
+                    username: true,
+                    userId: true // ✅ REQUIRED
                 }
             },
             aiData: true
         }
     })
-
     if (!video) {
         throw new Error("Video not found")
+    }
+
+    if (
+        video.visibility === "PRIVATE" &&
+        video.channel.userId !== userId
+    ) {
+        throw new Error("This video is private")
     }
 
     return {
@@ -223,6 +235,7 @@ export const getVideoById = async (id: number) => {
         createdAt: video.createdAt,
         thumbnailKey: video.thumbnailKey,
         signedUrl: signCloudFrontUrl(video.s3Key),
-        size: video.size.toString()
+        size: video.size.toString(),
+        visibility: video.visibility // ✅ ADD THIS
     }
 }

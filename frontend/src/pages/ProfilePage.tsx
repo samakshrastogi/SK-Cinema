@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
 import AppLayout from "@/layouts/AppLayout"
 import { api } from "@/api/axios"
 import VideoCard from "@/components/VideoCard"
 import { useAuth } from "@/context/AuthContext"
 
+/* ---------------- TYPES ---------------- */
+
 interface User {
     id: number
-    email: string
-    username: string
     name?: string
     avatarUrl?: string
     avatarKey?: string
@@ -18,83 +19,139 @@ interface Stats {
     videos: number
     playlists: number
     favorites: number
-    comments: number
 }
 
 interface Video {
     id: number
-    title: string
+    title?: string
     aiTitle?: string
     thumbnailKey?: string
 }
 
-interface Activity {
-    type: string
-    title: string
-    createdAt: string
+interface Playlist {
+    id: number
+    name: string
+    videos: Video[]
 }
 
-const ProfilePage = () => {
+interface RawVideo {
+    id: number
+    title?: string
+    aiTitle?: string
+    thumbnailKey?: string
+}
 
+interface RawPlaylist {
+    id: number
+    name: string
+    videos: RawVideo[]
+}
+interface EditModalProps {
+    name: string
+    setName: (v: string) => void
+    channelName: string
+    setChannelName: (v: string) => void
+    description: string
+    setDescription: (v: string) => void
+    onClose: () => void
+    onSave: () => void
+}
+
+/* ---------------- COMPONENT ---------------- */
+
+const ProfilePage = () => {
+    const navigate = useNavigate()
     const { updateUser } = useAuth()
 
     const [user, setUser] = useState<User | null>(null)
     const [stats, setStats] = useState<Stats | null>(null)
-    const [videos, setVideos] = useState<Video[]>([])
+
+    const [publicVideos, setPublicVideos] = useState<Video[]>([])
+    const [privateVideos, setPrivateVideos] = useState<Video[]>([])
     const [history, setHistory] = useState<Video[]>([])
-    const [activity, setActivity] = useState<Activity[]>([])
-    const [aiInsights, setAiInsights] = useState<string[]>([])
+    const [favorites, setFavorites] = useState<Video[]>([])
+    const [playlists, setPlaylists] = useState<Playlist[]>([])
 
     const [loading, setLoading] = useState(true)
-
     const [editOpen, setEditOpen] = useState(false)
+
+    const [activeTab, setActiveTab] = useState<
+        "history" | "publicVideos" | "privateVideos" | "favorites" | "playlists"
+    >("history")
 
     const [name, setName] = useState("")
     const [channelName, setChannelName] = useState("")
     const [description, setDescription] = useState("")
 
-    /* ---------------- FETCH PROFILE ---------------- */
+    /* ---------------- HELPERS ---------------- */
+
+    const normalizeVideos = (arr: RawVideo[]): Video[] => {
+        if (!Array.isArray(arr)) return []
+
+        return arr.map(v => ({
+            id: v.id,
+            title: v.title || v.aiTitle || `Video #${v.id}`,
+            aiTitle: v.aiTitle ?? undefined,
+            thumbnailKey: v.thumbnailKey
+        }))
+    }
+
+    /* ---------------- FETCH ---------------- */
+
     const fetchProfile = async () => {
-
         try {
-
             const res = await api.get("/user/me")
-            const data = res.data.data
+            const data = res.data?.data || {}
 
-            setUser(data.user)
-            updateUser(data.user)
-            setStats(data.stats)
-            setVideos(data.uploadedVideos)
-            setHistory(data.history)
-            setActivity(data.activity || [])
-            setAiInsights(data.aiInsights || [])
+            setUser(data.user || null)
+            updateUser(data.user || null)
+
+            setStats(data.stats || null)
+
+            setHistory(normalizeVideos(data.history))
+            setFavorites(normalizeVideos(data.favorites))
+
+            // 🔥 parallel API calls (faster)
+            if (data.channel?.id) {
+                const [publicRes, privateRes] = await Promise.all([
+                    api.get(`/video/channel/${data.channel.id}/public`),
+                    api.get(`/video/channel/${data.channel.id}/private`)
+                ])
+
+                setPublicVideos(normalizeVideos(publicRes.data.data))
+                setPrivateVideos(normalizeVideos(privateRes.data.data))
+            }
+
+            const playlistData: Playlist[] = Array.isArray(data.playlists)
+                ? data.playlists.map((p: RawPlaylist) => ({
+                    id: p.id,
+                    name: p.name,
+                    videos: normalizeVideos(p.videos)
+                }))
+                : []
+
+            setPlaylists(playlistData)
 
             setName(data.user?.name || "")
             setChannelName(data.channel?.name || "")
             setDescription(data.channel?.description || "")
 
-        } catch (error) {
-
-            console.error("Profile fetch error:", error)
-
+        } catch (err) {
+            console.error("Profile fetch error:", err)
         } finally {
-
             setLoading(false)
-
         }
-
     }
+
+    /* ✅ RUN ONLY ONCE */
     useEffect(() => {
         fetchProfile()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    /* ---------------- SAVE PROFILE ---------------- */
+    /* ---------------- SAVE ---------------- */
 
     const saveProfile = async () => {
-
         try {
-
             await api.patch("/user/profile", {
                 name,
                 channelName,
@@ -102,23 +159,17 @@ const ProfilePage = () => {
             })
 
             await fetchProfile()
-
             setEditOpen(false)
 
-        } catch (error) {
-
-            console.error("Profile update failed", error)
-
+        } catch (err) {
+            console.error("Profile update failed", err)
         }
-
     }
 
-    /* ---------------- AVATAR UPLOAD ---------------- */
+    /* ---------------- AVATAR ---------------- */
 
     const uploadAvatar = async (file: File) => {
-
         try {
-
             const uploadRes = await api.post("/user/avatar-upload-url", {
                 fileType: file.type
             })
@@ -132,288 +183,294 @@ const ProfilePage = () => {
             })
 
             await api.post("/user/avatar", { key })
-
             await fetchProfile()
 
         } catch (err) {
-
             console.error("Avatar upload failed", err)
-
         }
-
     }
-
-    /* ---------------- LOADING ---------------- */
 
     if (loading) {
         return (
             <AppLayout>
-                <p className="text-gray-400">Loading profile...</p>
+                <div className="animate-pulse h-40 bg-gray-800 rounded-xl" />
             </AppLayout>
         )
     }
 
-    /* ---------------- AVATAR URL ---------------- */
-
     const avatarSrc =
         user?.avatarUrl ||
-        (user?.avatarKey?.startsWith("http")
-            ? user.avatarKey
-            : user?.avatarKey
-                ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${user.avatarKey}`
-                : null)
+        (user?.avatarKey
+            ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${user.avatarKey}`
+            : null)
+
+    const joinedYear = user?.createdAt
+        ? new Date(user.createdAt).getFullYear()
+        : "—"
 
     /* ---------------- UI ---------------- */
 
     return (
-
         <AppLayout>
 
-            <div className="space-y-10">
+            <div className="space-y-5 pb-6">
 
-                {/* PROFILE HEADER */}
+                {/* BANNER */}
+                <div className="relative h-37.5 sm:h-50 md:h-65 rounded-xl overflow-hidden">
+                    <img
+                        src="https://i.pinimg.com/originals/4f/de/0e/4fde0ed05a14d7f6c1a0b19daec5a731.jpg"
+                        alt="Profile banner"
+                        className="w-full h-full object-cover"
+                    />
+                </div>
 
-                <div className="bg-white/5 p-6 rounded-xl border border-white/10 flex items-center justify-between">
+                {/* PROFILE */}
+                <div className="-mt-12 sm:-mt-16 px-4 sm:px-6 flex flex-col gap-4 relative z-10">
 
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center justify-between">
 
-                        <label className="w-20 h-20 rounded-full bg-purple-600 flex items-center justify-center text-2xl font-bold overflow-hidden cursor-pointer">
+                        <div className="flex items-center gap-4">
 
-                            <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                    const file = e.target.files?.[0]
-                                    if (file) uploadAvatar(file)
-                                }}
-                            />
+                            <label className="w-16 h-16 sm:w-24 sm:h-24 rounded-full border-4 border-black overflow-hidden cursor-pointer shrink-0">
 
-                            {avatarSrc ? (
-
-                                <img
-                                    src={avatarSrc}
-                                    loading="lazy"
-                                    alt="User avatar"
-                                    referrerPolicy="no-referrer"
-                                    className="w-full h-full object-cover"
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file) uploadAvatar(file)
+                                    }}
                                 />
 
-                            ) : (
+                                {avatarSrc ? (
+                                    <img
+                                        src={avatarSrc}
+                                        alt={user?.name || "User avatar"}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <span className="flex items-center justify-center h-full">
+                                        {user?.name?.[0] || "U"}
+                                    </span>
+                                )}
 
-                                user?.name?.[0]?.toLowerCase()
+                            </label>
 
-                            )}
+                            <div>
+                                <h1 className="text-lg sm:text-2xl font-bold">
+                                    {user?.name || "User"}
+                                </h1>
 
-                        </label>
-
-                        <div>
-
-                            <h1 className="text-3xl font-bold">
-                                {user?.name}
-                            </h1>
-
-                            <p className="text-gray-400">
-                                Joined {user?.createdAt && new Date(user.createdAt).toLocaleDateString()}
-                            </p>
+                                <p className="text-gray-400 text-xs sm:text-sm">
+                                    Member since {joinedYear}
+                                </p>
+                            </div>
 
                         </div>
 
+                        <button
+                            onClick={() => setEditOpen(true)}
+                            className="bg-white text-black px-4 py-2 rounded-full text-sm"
+                        >
+                            Edit
+                        </button>
+
                     </div>
 
-                    <button
-                        onClick={() => setEditOpen(true)}
-                        className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm"
-                    >
-                        Edit Profile
-                    </button>
+                    {/* STATS */}
+                    <div className="flex justify-between sm:justify-start sm:gap-6 text-sm text-gray-300">
+
+                        <Stat label="Uploads" value={stats?.videos || 0} />
+                        <Stat label="Favorites" value={stats?.favorites || 0} />
+                        <Stat label="Playlists" value={stats?.playlists || 0} />
+
+                    </div>
 
                 </div>
 
-                {/* STATS */}
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-
-                    <StatCard label="Videos" value={stats?.videos || 0} />
-                    <StatCard label="Playlists" value={stats?.playlists || 0} />
-                    <StatCard label="Favorites" value={stats?.favorites || 0} />
-                    <StatCard label="Comments" value={stats?.comments || 0} />
-
+                {/* TABS */}
+                <div className="px-4 sm:px-6 flex gap-2 overflow-x-auto">
+                    <Pill label="Continue Watching" active={activeTab === "history"} onClick={() => setActiveTab("history")} />
+                    <Pill label="Public" active={activeTab === "publicVideos"} onClick={() => setActiveTab("publicVideos")} />
+                    <Pill label="Private" active={activeTab === "privateVideos"} onClick={() => setActiveTab("privateVideos")} />                    <Pill label="Favorites" active={activeTab === "favorites"} onClick={() => setActiveTab("favorites")} />
+                    <Pill label="Playlists" active={activeTab === "playlists"} onClick={() => setActiveTab("playlists")} />
                 </div>
 
-                {/* AI INSIGHTS */}
+                {/* CONTENT */}
+                <div className="px-4 sm:px-6">
 
-                <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                    {(activeTab === "publicVideos" || activeTab === "privateVideos") && (
+                        <div className="flex justify-between items-center mb-3">
+                            <h2 className="text-lg font-semibold">Your Uploads</h2>
 
-                    <h2 className="text-xl font-semibold mb-4">
-                        🤖 AI Insights
-                    </h2>
-
-                    {aiInsights.length === 0 ? (
-                        <p className="text-gray-400">No AI insights yet</p>
-                    ) : (
-                        <div className="flex flex-wrap gap-3">
-                            {aiInsights.map((tag, i) => (
-                                <span
-                                    key={i}
-                                    className="bg-purple-600 px-3 py-1 rounded-full text-sm"
-                                >
-                                    {tag}
-                                </span>
-                            ))}
+                            <button
+                                onClick={() => navigate("/upload")}
+                                className="bg-purple-600 px-4 py-2 rounded-lg text-sm"
+                            >
+                                + Upload
+                            </button>
                         </div>
                     )}
 
-                </div>
-
-                {/* UPLOADED VIDEOS */}
-
-                <Section title="🎥 Uploaded Videos">
-                    {videos.length === 0
-                        ? <p className="text-gray-400">No uploaded videos</p>
-                        : <VideoGrid videos={videos} />
+                    {activeTab === "playlists"
+                        ? <PlaylistSection playlists={playlists} />
+                        : <VideoRow videos={
+                            activeTab === "history" ? history :
+                                activeTab === "publicVideos" ? publicVideos :
+                                    activeTab === "privateVideos" ? privateVideos :
+                                        favorites
+                        } />
                     }
-                </Section>
-
-                {/* WATCH HISTORY */}
-
-                <Section title="🕘 Watch History">
-                    {history.length === 0
-                        ? <p className="text-gray-400">No watch history</p>
-                        : <VideoGrid videos={history} />
-                    }
-                </Section>
-
-                {/* ACTIVITY */}
-
-                <div className="bg-white/5 p-6 rounded-xl border border-white/10">
-
-                    <h2 className="text-xl font-semibold mb-4">
-                        📜 Recent Activity
-                    </h2>
-
-                    <div className="space-y-3">
-
-                        {activity.map((a, i) => (
-
-                            <div key={i} className="text-sm text-gray-300">
-
-                                {a.type} — {a.title}
-
-                                <span className="text-gray-500 ml-2">
-                                    {new Date(a.createdAt).toLocaleDateString()}
-                                </span>
-
-                            </div>
-
-                        ))}
-
-                    </div>
 
                 </div>
-
-                {/* EDIT PROFILE MODAL */}
-
-                {editOpen && (
-
-                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-
-                        <div className="bg-gray-900 p-6 rounded-xl w-[400px] space-y-4">
-
-                            <h2 className="text-xl font-semibold">
-                                Edit Profile
-                            </h2>
-
-                            <input
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="w-full bg-gray-800 p-2 rounded"
-                                placeholder="Name"
-                            />
-
-                            <input
-                                value={channelName}
-                                onChange={(e) => setChannelName(e.target.value)}
-                                className="w-full bg-gray-800 p-2 rounded"
-                                placeholder="Channel Name"
-                            />
-
-                            <textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                className="w-full bg-gray-800 p-2 rounded"
-                                placeholder="Description"
-                            />
-
-                            <div className="flex justify-end gap-3">
-
-                                <button
-                                    onClick={() => setEditOpen(false)}
-                                    className="px-4 py-2 bg-gray-700 rounded"
-                                >
-                                    Cancel
-                                </button>
-
-                                <button
-                                    onClick={saveProfile}
-                                    className="px-4 py-2 bg-purple-600 rounded"
-                                >
-                                    Save
-                                </button>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                )}
 
             </div>
 
+            {editOpen && (
+                <EditModal
+                    name={name}
+                    setName={setName}
+                    channelName={channelName}
+                    setChannelName={setChannelName}
+                    description={description}
+                    setDescription={setDescription}
+                    onClose={() => setEditOpen(false)}
+                    onSave={saveProfile}
+                />
+            )}
+
         </AppLayout>
-
     )
-
 }
 
-/* ---------------- VIDEO GRID ---------------- */
+/* ---------------- SMALL COMPONENTS ---------------- */
 
-const VideoGrid = ({ videos }: { videos: Video[] }) => (
-
-    <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {videos.map((video) => (
-            <VideoCard key={video.id} video={video} />
-        ))}
+const Stat = ({ label, value }: { label: string, value: number }) => (
+    <div>
+        <p className="font-bold">{value}</p>
+        <p className="text-gray-400 text-xs">{label}</p>
     </div>
-
 )
 
-/* ---------------- SECTION ---------------- */
+const VideoRow = ({ videos }: { videos: Video[] }) => {
+    if (!videos.length) return <p className="text-gray-500">No content</p>
 
-type SectionProps = {
-    title: string
-    children: React.ReactNode
+    return (
+        <div className="flex gap-3 overflow-x-auto">
+            {videos.map(v => (
+                <div key={v.id} className="min-w-45">
+                    <VideoCard video={v} />
+                </div>
+            ))}
+        </div>
+    )
 }
 
-const Section = ({ title, children }: SectionProps) => (
+const PlaylistSection = ({ playlists }: { playlists: Playlist[] }) => {
+    if (!playlists.length) return <p>No playlists</p>
 
-    <div className="space-y-4">
-        <h2 className="text-xl font-semibold">{title}</h2>
-        {children}
-    </div>
+    return (
+        <div className="space-y-6">
+            {playlists.map(p => (
+                <div key={p.id}>
+                    <h2 className="font-semibold mb-2">{p.name}</h2>
+                    <VideoRow videos={p.videos} />
+                </div>
+            ))}
+        </div>
+    )
+}
 
+const Pill = ({ label, active, onClick }: {
+    label: string
+    active: boolean
+    onClick: () => void
+}) => (
+    <button
+        onClick={onClick}
+        className={`px-3 py-1.5 rounded-full text-xs ${active ? "bg-white text-black" : "bg-gray-800 text-gray-300"}`}
+    >
+        {label}
+    </button>
 )
 
-/* ---------------- STAT CARD ---------------- */
+const EditModal = ({
+    name,
+    setName,
+    channelName,
+    setChannelName,
+    description,
+    setDescription,
+    onClose,
+    onSave
+}: EditModalProps) => (
+    <div
+        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4"
+        onClick={onClose}
+    >
+        <div
+            className="bg-[#111] p-6 rounded-xl w-full max-w-100 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+        >
+            <h2 className="text-xl font-semibold">
+                Edit Profile
+            </h2>
 
-const StatCard = ({ label, value }: { label: string, value: number }) => (
+            {/* NAME */}
+            <div className="space-y-1">
+                <label className="text-sm text-gray-400">Name</label>
+                <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your name"
+                    aria-label="Name"
+                    className="w-full bg-gray-800 p-2 rounded text-sm"
+                />
+            </div>
 
-    <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
-        <p className="text-2xl font-bold">{value}</p>
-        <p className="text-gray-400 text-sm">{label}</p>
+            {/* CHANNEL NAME */}
+            <div className="space-y-1">
+                <label className="text-sm text-gray-400">Channel Name</label>
+                <input
+                    value={channelName}
+                    onChange={(e) => setChannelName(e.target.value)}
+                    placeholder="Enter channel name"
+                    aria-label="Channel Name"
+                    className="w-full bg-gray-800 p-2 rounded text-sm"
+                />
+            </div>
+
+            {/* DESCRIPTION */}
+            <div className="space-y-1">
+                <label className="text-sm text-gray-400">Description</label>
+                <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Tell something about your channel"
+                    aria-label="Description"
+                    className="w-full bg-gray-800 p-2 rounded text-sm"
+                />
+            </div>
+
+            {/* ACTIONS */}
+            <div className="flex justify-end gap-3 pt-2">
+                <button
+                    onClick={onClose}
+                    className="px-4 py-2 bg-gray-700 rounded text-sm"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    onClick={onSave}
+                    className="px-4 py-2 bg-purple-600 rounded text-sm"
+                >
+                    Save
+                </button>
+            </div>
+
+        </div>
     </div>
-
 )
-
 export default ProfilePage

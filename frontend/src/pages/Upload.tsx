@@ -35,6 +35,7 @@ interface UploadItem {
     tags: string
 
     videoId?: number
+    visibility: "PUBLIC" | "PRIVATE"
 }
 
 const socket = io(import.meta.env.VITE_SOCKET_URL, {
@@ -193,8 +194,8 @@ const Upload = () => {
 
                     title: file.name.replace(/\.[^/.]+$/, ""),
                     description: "",
-                    tags: ""
-
+                    tags: "",
+                    visibility: "PUBLIC" // ✅ DEFAULT
                 }
 
                 setQueue(prev => [...prev, newItem])
@@ -302,6 +303,7 @@ const Upload = () => {
                     .filter(Boolean),
                 duration: item.duration,
                 size: item.file.size,
+                visibility: item.visibility // ✅ IMPORTANT
             });
 
             const videoId = completeRes.data.data.id;
@@ -438,6 +440,31 @@ const Upload = () => {
                         >
 
                             {/* VIDEO + PROGRESS */}
+                            {/* VISIBILITY TOGGLE */}
+
+                            <div className="flex gap-4 mt-4">
+
+                                <button
+                                    onClick={() => updateItem(index, { visibility: "PUBLIC" })}
+                                    className={`px-4 py-2 rounded-lg text-sm ${item.visibility === "PUBLIC"
+                                        ? "bg-green-600"
+                                        : "bg-gray-700"
+                                        }`}
+                                >
+                                    Public
+                                </button>
+
+                                <button
+                                    onClick={() => updateItem(index, { visibility: "PRIVATE" })}
+                                    className={`px-4 py-2 rounded-lg text-sm ${item.visibility === "PRIVATE"
+                                        ? "bg-red-600"
+                                        : "bg-gray-700"
+                                        }`}
+                                >
+                                    Private
+                                </button>
+
+                            </div>
 
                             <div className="flex gap-6 items-start">
 

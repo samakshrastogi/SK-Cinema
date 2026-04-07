@@ -1,9 +1,11 @@
 import { useNavigate } from "react-router-dom"
+import { Play } from "lucide-react"
 
-// ✅ EXPORT THIS (important for VideoRow)
+/* ---------------- TYPES ---------------- */
+
 export interface Video {
     id: number
-    title: string
+    title?: string
     aiTitle?: string
     thumbnailKey?: string
     progress?: number
@@ -13,100 +15,109 @@ interface Props {
     video: Video
 }
 
+/* ---------------- COMPONENT ---------------- */
+
 const VideoCard = ({ video }: Props) => {
+
     const navigate = useNavigate()
+
+    /* ---------------- DATA ---------------- */
 
     const thumbnail = video.thumbnailKey
         ? `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${video.thumbnailKey}`
         : "/placeholder.jpg"
 
-    const rawTitle = video.aiTitle || video.title
+    const title =
+        video.aiTitle ||
+        video.title ||
+        "Untitled"
 
-    // 🎯 FORMAT TITLE → max 2 lines, 3 words per line
-    const formatTitle = (text: string) => {
-        const words = text.split(" ")
-
-        const firstLine = words.slice(0, 3).join(" ")
-        const secondLineWords = words.slice(3, 6)
-
-        let secondLine = secondLineWords.join(" ")
-
-        if (words.length > 6) {
-            secondLine += "..."
-        }
-
-        return secondLine ? `${firstLine}\n${secondLine}` : firstLine
-    }
-
-    const title = formatTitle(rawTitle)
+    /* ---------------- UI ---------------- */
 
     return (
         <div
             onClick={() => navigate(`/video/${video.id}`)}
             className="
-        group
-        bg-white/5 rounded-xl overflow-hidden
-        cursor-pointer
-        transition-all duration-300
+                group relative
+                rounded-xl overflow-hidden
+                cursor-pointer
+                bg-white/5
 
-        hover:scale-105
-        hover:-translate-y-1
-        hover:shadow-2xl
-        hover:bg-white/10
-      "
+                transition-all duration-300
+                hover:scale-[1.06]
+                hover:-translate-y-1
+                hover:shadow-2xl
+            "
         >
+
             {/* 🎬 THUMBNAIL */}
             <div className="relative overflow-hidden">
+
                 <img
                     src={thumbnail}
-                    alt={rawTitle}
+                    alt={title}
+                    onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = "/placeholder.jpg"
+                    }}
                     className="
-            w-full h-32 object-cover
-            transition-transform duration-500
-            group-hover:scale-110
-          "
+                        w-full h-32 object-cover
+                        transition-transform duration-500
+                        group-hover:scale-110
+                    "
                 />
 
-                <div
-                    className="
-            absolute inset-0 bg-black/0
-            group-hover:bg-black/10
-            transition
-          "
-                />
-            </div>
+                {/* 🌑 GRADIENT OVERLAY */}
+                <div className="
+                    absolute inset-0
+                    bg-gradient-to-t from-black/60 via-black/20 to-transparent
+                    opacity-0 group-hover:opacity-100
+                    transition
+                " />
 
-            {/* 📄 CONTENT */}
-            <div className="p-3 h-[72px] flex flex-col justify-between">
+                {/* ▶ PLAY BUTTON */}
+                <div className="
+                    absolute inset-0
+                    flex items-center justify-center
+                    opacity-0 group-hover:opacity-100
+                    transition
+                ">
+                    <div className="
+                        bg-white/90 text-black
+                        p-2 rounded-full
+                        shadow-lg
+                        scale-90 group-hover:scale-100
+                        transition
+                    ">
+                        <Play size={18} />
+                    </div>
+                </div>
 
-                {/* 🧠 TITLE */}
-                <p
-                    className="
-            text-sm font-medium
-            text-gray-200 group-hover:text-white
-            transition
-
-            leading-snug
-            whitespace-pre-line
-          "
-                >
-                    {title}
-                </p>
-
-                {/* 🎯 PROGRESS BAR */}
-                {video.progress !== undefined && (
-                    <div className="h-1 bg-gray-700/60 rounded overflow-hidden mt-2">
+                {/* 📊 PROGRESS BAR */}
+                {typeof video.progress === "number" && (
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40">
                         <div
-                            className="
-                h-full bg-purple-500
-                transition-all duration-500
-              "
+                            className="h-full bg-red-500 transition-all duration-500"
                             style={{ width: `${video.progress}%` }}
                         />
                     </div>
                 )}
 
             </div>
+
+            {/* 📄 CONTENT */}
+            <div className="p-3">
+
+                <p className="
+                    text-sm font-medium
+                    text-gray-200 group-hover:text-white
+                    transition
+                    line-clamp-2
+                ">
+                    {title}
+                </p>
+
+            </div>
+
         </div>
     )
 }

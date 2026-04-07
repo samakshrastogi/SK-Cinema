@@ -68,7 +68,7 @@ const Topbar = () => {
         px-4 md:px-6
         bg-[#1b1236]/80 backdrop-blur-xl border-b border-white/10
         z-50
-      "
+        "
         >
             {/* 🔷 LEFT */}
             <div className="flex items-center gap-3 md:gap-4">
@@ -78,12 +78,12 @@ const Topbar = () => {
                     <button
                         onClick={toggleSidebar}
                         className="
-              md:hidden
-              p-2 rounded-lg
-              hover:bg-white/10
-              transition
-              opacity-80 hover:opacity-100
-            "
+                md:hidden
+                p-2 rounded-lg
+                hover:bg-white/10
+                transition
+                opacity-80 hover:opacity-100
+                "
                         aria-label="h"
                     >
                         <Menu size={20} />
@@ -91,12 +91,20 @@ const Topbar = () => {
                 )}
 
                 {/* LOGO */}
-                <h1
+                <div
                     onClick={() => navigate("/home")}
-                    className="text-base sm:text-lg md:text-xl font-bold cursor-pointer whitespace-nowrap"
+                    className="flex items-center gap-2 cursor-pointer whitespace-nowrap"
                 >
-                    🎬 SK Cinema
-                </h1>
+                    <img
+                        src="/images/logo.png"
+                        alt="SK Cinema Logo"
+                        className="w-6 h-6 sm:w-7 sm:h-7 object-contain"
+                    />
+
+                    <h1 className="text-base sm:text-lg md:text-xl font-bold">
+                        SK Cinema
+                    </h1>
+                </div>
 
                 {/* SEARCH (DESKTOP) */}
                 <div className="hidden md:flex items-center bg-white/10 px-4 py-2 rounded-lg w-[260px] lg:w-[380px] focus-within:ring-2 focus-within:ring-purple-500">
@@ -116,14 +124,6 @@ const Topbar = () => {
                 {/* SEARCH ICON (MOBILE) */}
                 <button className="md:hidden p-2 bg-white/10 rounded-lg" aria-label="h">
                     <Search size={18} />
-                </button>
-
-                {/* UPLOAD */}
-                <button
-                    onClick={() => navigate("/upload")}
-                    className="hidden sm:block bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm active:scale-95 transition"
-                >
-                    Upload
                 </button>
 
                 {/* NOTIFICATIONS */}

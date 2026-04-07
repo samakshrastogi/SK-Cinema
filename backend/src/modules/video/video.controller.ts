@@ -62,7 +62,7 @@ export const finishUpload = async (
             })
         }
 
-        const { key, title, size } = req.body
+        const { key, title, size, visibility } = req.body
 
         if (!key || !title || !size) {
             return res.status(400).json({
@@ -75,7 +75,8 @@ export const finishUpload = async (
             req.user.id,
             key,
             title,
-            Number(size)
+            Number(size),
+            visibility,
         )
 
         return res.status(201).json({
@@ -167,7 +168,8 @@ export const importSelectedVideos = async (
                         size: BigInt(0),
                         uploadSource: "S3_IMPORT",
                         status: "UPLOADED",
-                        channelId: user.channel.id
+                        channelId: user.channel.id,
+                        visibility: "PUBLIC" // ✅ DEFAULT
                     }
                 })
 
@@ -311,5 +313,99 @@ export const handleGetAIInsights = async (
             success: false,
             message: "Failed to fetch AI insights"
         })
+    }
+}
+export const handleGetChannelPublicVideos = async (req, res) => {
+    try {
+        const { channelId } = req.params
+
+        const videos = await prisma.video.findMany({
+            where: {
+                channelId: Number(channelId),
+                status: "UPLOADED",
+                visibility: "PUBLIC"
+            },
+            include: {
+                aiData: true
+            },
+            orderBy: {
+                createdAt: "desc"
+            }
+        })
+
+        // ✅ FIX HERE
+        const formatted = videos.map(v => ({
+            id: v.id,
+            title: v.title,
+            aiTitle: v.aiData?.aiTitle ?? null,
+            thumbnailKey: v.thumbnailKey,
+            size: v.size.toString(), // 🔥 IMPORTANT
+            createdAt: v.createdAt
+        }))
+
+        res.json({
+            success: true,
+            data: formatted
+        })
+
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ success: false })
+    }
+}
+export const handleGetChannelPrivateVideos = async (req: AuthRequest, res: Response) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
+        }
+
+        const { channelId } = req.params
+
+        // ✅ ensure user owns this channel
+        const channel = await prisma.channel.findUnique({
+            where: { id: Number(channelId) }
+        })
+
+        if (!channel || channel.userId !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied"
+            })
+        }
+
+        const videos = await prisma.video.findMany({
+            where: {
+                channelId: Number(channelId),
+                status: "UPLOADED",
+                visibility: "PRIVATE"
+            },
+            include: {
+                aiData: true
+            },
+            orderBy: {
+                createdAt: "desc"
+            }
+        })
+
+        const formatted = videos.map(v => ({
+            id: v.id,
+            title: v.title,
+            aiTitle: v.aiData?.aiTitle ?? null,
+            thumbnailKey: v.thumbnailKey,
+            size: v.size.toString(), // ✅ fix
+            createdAt: v.createdAt
+        }))
+
+        return res.json({
+            success: true,
+            data: formatted
+        })
+
+    } catch (err) {
+        console.error(err)
+        return res.status(500).json({ success: false })
     }
 }

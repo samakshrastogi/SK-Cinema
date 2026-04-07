@@ -8,7 +8,9 @@ import {
     importSelectedVideos,
     handleGetVideoById,
     handleGetVideos,
-    handleGetAIInsights
+    handleGetAIInsights,
+    handleGetChannelPublicVideos, 
+    handleGetChannelPrivateVideos
 } from "./video.controller"
 
 import {
@@ -34,6 +36,13 @@ router.post("/s3/import", authenticate, importVideo)
 router.get("/ai-insights", authenticate, handleGetAIInsights)
 
 router.get("/", handleGetVideos)
-router.get("/:id", handleGetVideoById)
+router.get("/:id", authenticate, handleGetVideoById)
+router.get("/channel/:channelId/public", handleGetChannelPublicVideos)
 
+// ✅ ADD THIS
+router.get(
+    "/channel/:channelId/private",
+    authenticate,
+    handleGetChannelPrivateVideos
+)
 export default router

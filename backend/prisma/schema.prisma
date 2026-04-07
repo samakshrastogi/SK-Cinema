@@ -54,6 +54,7 @@ model Channel {
   createdAt DateTime @default(now())
 }
 
+
 model Video {
   id           Int          @id @default(autoincrement())
   title        String
@@ -63,6 +64,8 @@ model Video {
 
   uploadSource UploadSource
   status       UploadStatus @default(UPLOADING)
+
+  visibility   VideoVisibility @default(PUBLIC) // ✅ NEW FIELD
 
   channelId Int
   channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
@@ -74,6 +77,7 @@ model Video {
   createdAt DateTime @default(now())
 
   @@index([channelId])
+  @@index([visibility]) // optional but useful
 }
 
 model S3Credential {
@@ -173,4 +177,10 @@ enum VideoActionType {
   DISLIKE
   COMMENT
   ADD_TO_PLAYLIST
+  WATCH   
+}
+
+enum VideoVisibility {
+  PUBLIC
+  PRIVATE
 }

@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosHeaders } from "axios"
+import axios, { AxiosHeaders } from "axios"
 
 const getToken = () => {
   return (
@@ -25,21 +25,17 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-api.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) => {
+api.interceptors.request.use((config) => {
 
-    if (error.response?.status === 401) {
+  const token = getToken()
 
-      localStorage.removeItem("token")
-      localStorage.removeItem("user")
+  console.log("TOKEN BEING SENT:", token) // ✅ ADD HERE
 
-      sessionStorage.removeItem("token")
-      sessionStorage.removeItem("user")
-
-      window.location.href = "/login"
-    }
-
-    return Promise.reject(error)
+  if (token) {
+    const headers = new AxiosHeaders(config.headers)
+    headers.set("Authorization", `Bearer ${token}`)
+    config.headers = headers
   }
-)
+
+  return config
+})

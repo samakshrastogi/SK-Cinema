@@ -7,34 +7,26 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     const { sidebarOpen } = useLayout()
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white">
+        <div className="min-h-screen bg-linear-to-br from-purple-900 via-indigo-900 to-black text-white overflow-x-hidden">
 
-            {/* Sidebar */}
             <Sidebar />
-
-            {/* Topbar */}
             <Topbar />
 
-            {/* Main Content */}
             <main
                 className={`
-          pt-[80px]
-          px-4 md:px-6
-          pb-20 md:pb-10
-          transition-all duration-300
-
-          ml-0
-          ${sidebarOpen ? "md:ml-64" : "md:ml-20"}
-        `}
+                    pt-22.5
+                    px-4 md:px-6
+                    pb-27.5 md:pb-10
+                    transition-all duration-300
+                    ${sidebarOpen ? "md:ml-64" : "md:ml-0"}
+                `}
             >
-                <div className="max-w-7xl mx-auto space-y-8">
+                <div className="max-w-7xl mx-auto w-full space-y-8">
                     {children}
                 </div>
             </main>
 
-            {/* ✅ Mobile Bottom Navigation */}
             <MobileBottomNav />
-
         </div>
     )
 }

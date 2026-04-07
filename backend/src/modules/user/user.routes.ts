@@ -8,6 +8,8 @@ import { s3 } from "../../config/s3"
 
 const router = Router()
 
+/* ---------------- CF SIGN ---------------- */
+
 const signCloudFrontUrl = (key: string) => {
     const encodedKey = encodeURI(key)
 
@@ -21,6 +23,10 @@ const signCloudFrontUrl = (key: string) => {
     })
 }
 
+/* ========================================================= */
+/* ======================= PROFILE ========================== */
+/* ========================================================= */
+
 router.get("/me", authenticate, async (req: AuthRequest, res) => {
     try {
         if (!req.user) {
@@ -29,6 +35,8 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
                 message: "Unauthorized"
             })
         }
+
+        /* ---------------- USER ---------------- */
 
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
@@ -41,6 +49,8 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
                 message: "User not found"
             })
         }
+
+        /* ---------------- STATS ---------------- */
 
         const [videosCount, playlistsCount, favoritesCount, commentsCount] =
             await Promise.all([
@@ -58,6 +68,8 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
                 })
             ])
 
+        /* ---------------- UPLOADED VIDEOS ---------------- */
+
         const uploadedVideos = await prisma.video.findMany({
             where: {
                 channelId: user.channel?.id,
@@ -68,19 +80,52 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
             take: 12
         })
 
+        /* ---------------- HISTORY (TEMP SAFE) ---------------- */
+        // ⚠️ WATCH not in enum → using LIKE as fallback
         const historyActions = await prisma.videoAction.findMany({
             where: {
                 userId: user.id,
-                actionType: { in: ["LIKE", "COMMENT"] }
+                actionType: "LIKE"
             },
             include: {
-                video: {
-                    include: { aiData: true }
-                }
+                video: { include: { aiData: true } }
             },
             orderBy: { createdAt: "desc" },
             take: 12
         })
+
+        /* ---------------- FAVORITES ---------------- */
+
+        const favoriteActions = await prisma.videoAction.findMany({
+            where: {
+                userId: user.id,
+                actionType: "LIKE"
+            },
+            include: {
+                video: { include: { aiData: true } }
+            },
+            orderBy: { createdAt: "desc" },
+            take: 12
+        })
+
+        /* ---------------- PLAYLISTS (FIXED) ---------------- */
+
+        const playlists = await prisma.playlist.findMany({
+            where: { userId: user.id },
+            include: {
+                actions: {
+                    where: { actionType: "ADD_TO_PLAYLIST" },
+                    include: {
+                        video: {
+                            include: { aiData: true }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: "desc" }
+        })
+
+        /* ---------------- RESPONSE ---------------- */
 
         return res.json({
             success: true,
@@ -99,29 +144,54 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
                     provider: user.provider,
                     createdAt: user.createdAt
                 },
+
                 channel: user.channel,
+
                 stats: {
                     videos: videosCount,
                     playlists: playlistsCount,
                     favorites: favoritesCount,
                     comments: commentsCount
                 },
-                uploadedVideos: uploadedVideos.map((video) => ({
-                    id: video.id,
-                    title: video.title,
-                    aiTitle: video.aiData?.aiTitle ?? null,
-                    thumbnailKey: video.thumbnailKey,
-                    size: Number(video.size),
-                    createdAt: video.createdAt
+
+                /* ---------- VIDEOS ---------- */
+
+                uploadedVideos: uploadedVideos.map(v => ({
+                    id: v.id,
+                    title: v.title,
+                    aiTitle: v.aiData?.aiTitle ?? null,
+                    thumbnailKey: v.thumbnailKey
                 })),
-                history: historyActions.map((h) => ({
+
+                history: historyActions.map(h => ({
                     id: h.video.id,
-                    title: h.video.title,
+                    title: h.video.title || h.video.aiData?.aiTitle || "Untitled",
                     aiTitle: h.video.aiData?.aiTitle ?? null,
                     thumbnailKey: h.video.thumbnailKey
+                })),
+
+                favorites: favoriteActions.map(f => ({
+                    id: f.video.id,
+                    title: f.video.title,
+                    aiTitle: f.video.aiData?.aiTitle ?? null,
+                    thumbnailKey: f.video.thumbnailKey
+                })),
+
+                /* ---------- PLAYLISTS (FIXED MAPPING) ---------- */
+
+                playlists: playlists.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    videos: p.actions.map(a => ({
+                        id: a.video.id,
+                        title: a.video.title || a.video.aiData?.aiTitle || "Untitled",
+                        aiTitle: a.video.aiData?.aiTitle ?? null,
+                        thumbnailKey: a.video.thumbnailKey
+                    }))
                 }))
             }
         })
+
     } catch (error) {
         console.error("Profile API Error:", error)
 
@@ -132,6 +202,10 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+/* ========================================================= */
+/* =================== UPDATE PROFILE ======================= */
+/* ========================================================= */
+
 router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
     try {
         if (!req.user) {
@@ -141,11 +215,12 @@ router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
             })
         }
 
-        const { username, channelName, description } = req.body
+        const { name, username, channelName, description } = req.body
 
         const user = await prisma.user.update({
             where: { id: req.user.id },
             data: {
+                name: name || undefined,
                 username: username || undefined
             }
         })
@@ -162,6 +237,7 @@ router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
             success: true,
             data: { user, channel }
         })
+
     } catch (error) {
         console.error("Profile update error:", error)
 
@@ -171,6 +247,10 @@ router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
         })
     }
 })
+
+/* ========================================================= */
+/* =================== AVATAR UPLOAD ======================== */
+/* ========================================================= */
 
 router.post("/avatar-upload-url", authenticate, async (req: AuthRequest, res) => {
     try {
@@ -214,6 +294,7 @@ router.post("/avatar-upload-url", authenticate, async (req: AuthRequest, res) =>
             uploadUrl,
             key
         })
+
     } catch (error) {
         console.error("Avatar upload url error:", error)
 
@@ -246,6 +327,7 @@ router.post("/avatar", authenticate, async (req: AuthRequest, res) => {
             success: true,
             avatarUrl
         })
+
     } catch (error) {
         console.error("Avatar save error:", error)
 
