@@ -36,13 +36,15 @@ router.post("/s3/import", authenticate, importVideo)
 router.get("/ai-insights", authenticate, handleGetAIInsights)
 
 router.get("/", handleGetVideos)
-router.get("/:id", authenticate, handleGetVideoById)
+
 router.get("/channel/:channelId/public", handleGetChannelPublicVideos)
 
-// ✅ ADD THIS
 router.get(
     "/channel/:channelId/private",
     authenticate,
     handleGetChannelPrivateVideos
 )
+
+// ✅ KEEP THIS LAST (VERY IMPORTANT)
+router.get("/:publicId", authenticate, handleGetVideoById)
 export default router

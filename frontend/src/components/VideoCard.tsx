@@ -4,7 +4,7 @@ import { Play } from "lucide-react"
 /* ---------------- TYPES ---------------- */
 
 export interface Video {
-    id: number
+    publicId: string
     title?: string
     aiTitle?: string
     thumbnailKey?: string
@@ -36,7 +36,7 @@ const VideoCard = ({ video }: Props) => {
 
     return (
         <div
-            onClick={() => navigate(`/video/${video.id}`)}
+            onClick={() => navigate(`/video/${video.publicId}`)}
             className="
                 group relative
                 rounded-xl overflow-hidden

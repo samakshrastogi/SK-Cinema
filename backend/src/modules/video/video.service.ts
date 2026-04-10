@@ -2,7 +2,7 @@ import {
     PutObjectCommand,
     ListObjectsV2Command
 } from "@aws-sdk/client-s3"
-
+import { nanoid } from "nanoid"
 import { getSignedUrl as getCFSignedUrl } from "@aws-sdk/cloudfront-signer"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
@@ -87,13 +87,15 @@ export const completeUpload = async (
 
     const video = await prisma.video.create({
         data: {
+            publicId: nanoid(10), // ✅ ADD THIS
+
             title: title.trim(),
             s3Key: key,
             size: BigInt(size),
             uploadSource: "MANUAL",
             status: "UPLOADED",
             channelId: user.channel.id,
-            visibility: visibility || "PUBLIC" // ✅ CORE LOGIC
+            visibility: visibility || "PUBLIC"
         }
     })
 
@@ -185,7 +187,7 @@ export const getAllVideos = async () => {
     })
 
     return videos.map((video) => ({
-        id: video.id,
+        publicId: video.publicId, // ✅ IMPORTANT
         title: video.title,
         aiTitle: video.aiData?.aiTitle ?? null,
         aiDescription: video.aiData?.aiDescription ?? null,
@@ -197,11 +199,11 @@ export const getAllVideos = async () => {
     }))
 }
 
-export const getVideoById = async (id: number, userId?: number) => {
+export const getVideoById = async (publicId: string, userId?: number) => {
 
     const video = await prisma.video.findFirst({
         where: {
-            id,
+            publicId, // ✅ CHANGED
             status: "UPLOADED"
         },
         include: {
@@ -209,12 +211,13 @@ export const getVideoById = async (id: number, userId?: number) => {
                 select: {
                     name: true,
                     username: true,
-                    userId: true // ✅ REQUIRED
+                    userId: true
                 }
             },
             aiData: true
         }
     })
+
     if (!video) {
         throw new Error("Video not found")
     }
@@ -227,7 +230,8 @@ export const getVideoById = async (id: number, userId?: number) => {
     }
 
     return {
-        id: video.id,
+        id: video.id, // keep internal id if needed
+        publicId: video.publicId, // ✅ ADD THIS
         title: video.title,
         aiTitle: video.aiData?.aiTitle ?? null,
         aiDescription: video.aiData?.aiDescription ?? null,
@@ -236,6 +240,6 @@ export const getVideoById = async (id: number, userId?: number) => {
         thumbnailKey: video.thumbnailKey,
         signedUrl: signCloudFrontUrl(video.s3Key),
         size: video.size.toString(),
-        visibility: video.visibility // ✅ ADD THIS
+        visibility: video.visibility
     }
 }

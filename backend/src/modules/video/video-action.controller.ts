@@ -11,9 +11,18 @@ export const handleReaction = async (req: AuthRequest, res: Response) => {
             return res.status(401).json({ message: "Unauthorized" })
         }
 
-        const { videoId, type } = req.body
+        const { publicId, type } = req.body
+
+        const video = await prisma.video.findUnique({
+            where: { publicId }
+        })
+
+        if (!video) {
+            return res.status(404).json({ message: "Video not found" })
+        }
+
+        const vid = video.id
         const userId = req.user.id
-        const vid = Number(videoId)
 
         const existingReaction = await prisma.videoAction.findFirst({
             where: {
@@ -63,12 +72,19 @@ export const handleComment = async (req: AuthRequest, res: Response) => {
             return res.status(401).json({ message: "Unauthorized" })
         }
 
-        const { videoId, text } = req.body
+        const { publicId, text } = req.body
 
+        const video = await prisma.video.findUnique({
+            where: { publicId }
+        })
+
+        if (!video) {
+            return res.status(404).json({ message: "Video not found" })
+        }
         const comment = await prisma.videoAction.create({
             data: {
                 userId: req.user.id,
-                videoId: Number(videoId),
+                videoId: video.id,
                 actionType: "COMMENT",
                 commentText: text
             }
@@ -91,12 +107,19 @@ export const handleAddToPlaylist = async (req: AuthRequest, res: Response) => {
             return res.status(401).json({ message: "Unauthorized" })
         }
 
-        const { videoId, playlistId } = req.body
+        const { publicId, playlistId } = req.body
 
+        const video = await prisma.video.findUnique({
+            where: { publicId }
+        })
+
+        if (!video) {
+            return res.status(404).json({ message: "Video not found" })
+        }
         const action = await prisma.videoAction.create({
             data: {
                 userId: req.user.id,
-                videoId: Number(videoId),
+                videoId: video.id,
                 playlistId: Number(playlistId),
                 actionType: "ADD_TO_PLAYLIST"
             }
@@ -176,8 +199,20 @@ export const handleGetVideoActions = async (
 
     try {
 
-        const videoId = Number(req.params.videoId)
+        const publicId = req.params.publicId
 
+        const video = await prisma.video.findUnique({
+            where: { publicId }
+        })
+
+        if (!video) {
+            return res.status(404).json({
+                success: false,
+                message: "Video not found"
+            })
+        }
+
+        const videoId = video.id
         const [likes, dislikes] = await Promise.all([
             prisma.videoAction.count({
                 where: { videoId, actionType: "LIKE" }
@@ -266,7 +301,7 @@ export const handleGetFavouriteVideos = async (
             .map((l) => l.video)
             .filter((v) => v !== null)
             .map((video) => ({
-                id: video.id,
+                publicId: video.publicId,
                 title: video.title,
                 aiTitle: video.aiData?.aiTitle ?? null,
                 thumbnailKey: video.thumbnailKey,
@@ -334,7 +369,7 @@ export const handleGetUserPlaylistsWithVideos = async (
                 .map((action) => action.video)
                 .filter((v) => v !== null)
                 .map((video) => ({
-                    id: video.id,
+                    publicId: video.publicId,
                     title: video.title,
                     aiTitle: video.aiData?.aiTitle ?? null,
                     thumbnailKey: video.thumbnailKey,

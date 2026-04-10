@@ -19,7 +19,7 @@ interface VideoDetail {
 }
 
 interface RelatedVideo {
-    id: number
+    publicId: string
     title: string
     aiTitle?: string
     thumbnailKey: string
@@ -39,7 +39,7 @@ interface Playlist {
 
 const VideoPlayer = () => {
 
-    const { id } = useParams()
+    const { publicId } = useParams()
     const navigate = useNavigate()
 
     const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -71,7 +71,7 @@ const VideoPlayer = () => {
 
         try {
 
-            const res = await api.get(`/video/${id}`)
+            const res = await api.get(`/video/${publicId}`)
 
             if (!res.data?.success) {
                 console.error("Video not found")
@@ -87,7 +87,7 @@ const VideoPlayer = () => {
             const allVideos = relatedRes.data?.data as RelatedVideo[] || []
 
             setRelated(
-                allVideos.filter((v) => v.id !== Number(id))
+                allVideos.filter((v) => v.publicId !== publicId)
             )
 
         } catch (error) {
@@ -100,7 +100,7 @@ const VideoPlayer = () => {
 
     const loadActions = async () => {
 
-        const res = await api.get(`/video-actions/video/${id}`)
+        const res = await api.get(`/video-actions/video/${publicId}`)
 
         setLikes(res.data.likes)
         setDislikes(res.data.dislikes)
@@ -117,7 +117,7 @@ const VideoPlayer = () => {
 
     const likeVideo = async () => {
         await api.post("/video-actions/react", {
-            videoId: id,
+            publicId,
             type: "LIKE"
         })
         loadActions()
@@ -125,7 +125,7 @@ const VideoPlayer = () => {
 
     const dislikeVideo = async () => {
         await api.post("/video-actions/react", {
-            videoId: id,
+            publicId,
             type: "DISLIKE"
         })
         loadActions()
@@ -133,7 +133,7 @@ const VideoPlayer = () => {
 
     const addVideoToPlaylist = async (playlistId: number) => {
         await api.post("/video-actions/playlist", {
-            videoId: id,
+            publicId,
             playlistId
         })
         setShowPlaylist(false)
@@ -156,7 +156,7 @@ const VideoPlayer = () => {
         if (!commentInput.trim()) return
 
         await api.post("/video-actions/comment", {
-            videoId: id,
+            publicId,
             text: commentInput
         })
 
@@ -168,7 +168,7 @@ const VideoPlayer = () => {
 
     const handleEnded = () => {
         if (related.length > 0) {
-            navigate(`/video/${related[0].id}`)
+            navigate(`/video/${related[0].publicId}`)
         }
     }
 
@@ -188,12 +188,12 @@ const VideoPlayer = () => {
         return `${minutes} minutes ago`
     }
     useEffect(() => {
-        if (!id) return
+        if (!publicId) return
         loadVideo()
         loadActions()
         loadPlaylists()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id])
+    }, [publicId])
     useEffect(() => {
         if (shouldScroll && commentsRef.current) {
             commentsRef.current.scrollTop = commentsRef.current.scrollHeight
@@ -420,8 +420,8 @@ const VideoPlayer = () => {
                             {related.slice(0, 8).map((item) => (
 
                                 <div
-                                    key={item.id}
-                                    onClick={() => navigate(`/video/${item.id}`)}
+                                    key={item.publicId}
+                                    onClick={() => navigate(`/video/${item.publicId}`)}
                                     className="flex gap-2 cursor-pointer hover:bg-black/40 p-2 rounded-lg"
                                 >
 
@@ -457,8 +457,8 @@ const VideoPlayer = () => {
                             {related.slice(8, 16).map((item) => (
 
                                 <div
-                                    key={item.id}
-                                    onClick={() => navigate(`/video/${item.id}`)}
+                                    key={item.publicId}
+                                    onClick={() => navigate(`/video/${item.publicId}`)}
                                     className="flex gap-2 cursor-pointer hover:bg-black/40 p-2 rounded-lg"
                                 >
 

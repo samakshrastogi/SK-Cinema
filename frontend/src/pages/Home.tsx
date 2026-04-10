@@ -7,7 +7,7 @@ import VideoRow from "@/components/VideoRow"
 /* ---------------- TYPES ---------------- */
 
 interface Video {
-  id: number
+  publicId: string
   title?: string
   aiTitle?: string
   thumbnailKey?: string
@@ -15,7 +15,7 @@ interface Video {
 }
 
 interface RawVideo {
-  id: number
+  publicId: string
   title?: string
   aiTitle?: string
   thumbnailKey?: string
@@ -38,11 +38,10 @@ const Home = () => {
     if (!Array.isArray(videos)) return []
 
     return videos.map(v => ({
-      id: v.id,
-      title: v.title || v.aiTitle || `Video #${v.id}`,
+      publicId: v.publicId,   // ✅ FIX
+      title: v.title || v.aiTitle || "Untitled",
       aiTitle: v.aiTitle ?? undefined,
-      thumbnailKey: v.thumbnailKey,
-      videoKey: v.videoKey
+      thumbnailKey: v.thumbnailKey
     }))
   }
 

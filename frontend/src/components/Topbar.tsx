@@ -71,24 +71,7 @@ const Topbar = () => {
         "
         >
             {/* 🔷 LEFT */}
-            <div className="flex items-center gap-3 md:gap-4">
-
-                {/* ✅ HAMBURGER → ONLY MOBILE + CONTEXTUAL */}
-                {showSidebarToggle && (
-                    <button
-                        onClick={toggleSidebar}
-                        className="
-                md:hidden
-                p-2 rounded-lg
-                hover:bg-white/10
-                transition
-                opacity-80 hover:opacity-100
-                "
-                        aria-label="h"
-                    >
-                        <Menu size={20} />
-                    </button>
-                )}
+            <div className="flex items-center gap-3 md:gap-4">                
 
                 {/* LOGO */}
                 <div

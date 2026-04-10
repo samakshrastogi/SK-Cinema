@@ -87,8 +87,7 @@ export const importVideo = async (req: any, res: Response) => {
             });
         }
 
-        const { credentialId, sourceKey } = req.body;
-
+        const { credentialId, sourceKey, visibility } = req.body;
         if (!credentialId || !sourceKey) {
             return res.status(400).json({
                 message: "credentialId and sourceKey are required",
@@ -98,7 +97,8 @@ export const importVideo = async (req: any, res: Response) => {
         const video = await importVideoFromUserBucket(
             Number(credentialId),
             userId,
-            sourceKey
+            sourceKey,
+            visibility,
         );
 
         res.json(video);

@@ -1,4 +1,4 @@
-import { useRef } from "react"
+import { useRef, useEffect } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import VideoCard, { Video } from "./VideoCard"
 
@@ -10,6 +10,36 @@ interface Props {
 const VideoRow = ({ title, videos }: Props) => {
     const scrollRef = useRef<HTMLDivElement | null>(null)
 
+    /* ---------------- DEBUG ---------------- */
+
+    useEffect(() => {
+        console.log("🔍 VideoRow Debug →", title)
+        console.log("📦 Full videos:", videos)
+
+        const ids = videos.map(v => v.publicId)
+
+        // ❌ Missing publicId
+        videos.forEach((v, i) => {
+            if (!v.publicId) {
+                console.error("❌ Missing publicId at index:", i, v)
+            }
+        })
+
+        // ❌ Duplicate publicIds
+        const duplicates = ids.filter((id, i) => id && ids.indexOf(id) !== i)
+        if (duplicates.length > 0) {
+            console.error("❌ Duplicate publicIds:", duplicates)
+        }
+
+        // ⚠️ Empty list check
+        if (videos.length === 0) {
+            console.warn("⚠️ No videos passed to VideoRow:", title)
+        }
+
+    }, [videos, title])
+
+    /* ---------------- SCROLL ---------------- */
+
     const scroll = (dir: "left" | "right") => {
         if (!scrollRef.current) return
 
@@ -20,6 +50,8 @@ const VideoRow = ({ title, videos }: Props) => {
             behavior: "smooth"
         })
     }
+
+    /* ---------------- UI ---------------- */
 
     return (
         <div className="space-y-4 group">
@@ -33,11 +65,19 @@ const VideoRow = ({ title, videos }: Props) => {
 
             {/* MOBILE */}
             <div className="flex flex-col gap-3 sm:hidden px-1">
-                {videos.map((video) => (
-                    <div key={video.id}>
-                        <VideoCard video={video} />
-                    </div>
-                ))}
+                {videos.map((video, index) => {
+                    const key = video.publicId || `missing-${index}`
+
+                    if (!video.publicId) {
+                        console.warn("⚠️ Fallback key used (mobile):", video)
+                    }
+
+                    return (
+                        <div key={key}>
+                            <VideoCard video={video} />
+                        </div>
+                    )
+                })}
             </div>
 
             {/* DESKTOP */}
@@ -83,19 +123,27 @@ const VideoRow = ({ title, videos }: Props) => {
                         no-scrollbar
                     "
                 >
-                    {videos.map((video) => (
-                        <div
-                            key={video.id}
-                            className="
-                                min-w-50 lg:min-w-55
-                                shrink-0
-                                transition-transform duration-300
-                                hover:scale-105
-                            "
-                        >
-                            <VideoCard video={video} />
-                        </div>
-                    ))}
+                    {videos.map((video, index) => {
+                        const key = video.publicId || `missing-${index}`
+
+                        if (!video.publicId) {
+                            console.warn("⚠️ Fallback key used (desktop):", video)
+                        }
+
+                        return (
+                            <div
+                                key={key}
+                                className="
+                                    min-w-50 lg:min-w-55
+                                    shrink-0
+                                    transition-transform duration-300
+                                    hover:scale-105
+                                "
+                            >
+                                <VideoCard video={video} />
+                            </div>
+                        )
+                    })}
                 </div>
 
             </div>

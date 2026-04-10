@@ -21,7 +21,7 @@ router.post("/comment", authenticate, handleComment)
 
 router.post("/playlist", authenticate, handleAddToPlaylist)
 
-router.get("/video/:videoId", authenticate, handleGetVideoActions)
+router.get("/video/:publicId", authenticate, handleGetVideoActions)
 
 router.get("/playlists", authenticate, handleGetPlaylists)
 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useEffect, useRef } from "react"
 
 interface Video {
-    id: number
+    publicId: string
     title?: string
     aiTitle?: string
     aiDescription?: string
@@ -34,7 +34,7 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
     const title =
         video?.aiTitle ||
         video?.title ||
-        (video ? `Video #${video.id}` : "")
+        (video ? `Video #${video.publicId}` : "")
 
     const description =
         video?.aiDescription ||
@@ -44,7 +44,7 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
         if (videoRef.current) {
             videoRef.current.load()
         }
-    }, [video?.id])
+    }, [video?.publicId])
 
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
@@ -60,7 +60,7 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
 
     return (
         <div
-            data-hero-id={video.id}
+            data-hero-id={video.publicId}
             className="
                 relative w-full
                 h-50 sm:h-65 lg:h-80
@@ -73,7 +73,7 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
             {videoUrl ? (
                 <video
                     ref={videoRef}
-                    key={video.id}
+                    key={video.publicId}
                     src={videoUrl}
                     autoPlay
                     muted
@@ -88,7 +88,7 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
                 />
             ) : (
                 <img
-                    key={video.id}
+                    key={video.publicId}
                     src={thumbnail}
                     alt={title}
                     className="
@@ -116,7 +116,7 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
                 </span>
 
                 <h1 className="
-                    text-2xl sm:text-4xl lg:text-5xl
+                    text-xl sm:text-2xl lg:text-3xl
                     font-extrabold leading-tight
                     drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]
                 ">
@@ -132,7 +132,7 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
                 </p>
 
                 <button
-                    onClick={() => navigate(`/video/${video.id}`)}
+                    onClick={() => navigate(`/video/${video.publicId}`)}
                     className="
                         flex items-center gap-2
                         bg-white text-black

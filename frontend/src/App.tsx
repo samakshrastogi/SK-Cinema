@@ -25,7 +25,7 @@ function App() {
       <Route path="/oauth-success" element={<OAuthSuccess />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
-      <Route path="/video/:id" element={<VideoPlayer />} />
+      <Route path="/video/:publicId" element={<VideoPlayer />} />
 
       <Route
         element={

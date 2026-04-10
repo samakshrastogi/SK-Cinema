@@ -6,6 +6,7 @@ import { s3 } from "../../config/s3"
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { generateThumbnail } from "../../utils/thumbnail"
 import { videoAIQueue } from "../../queues/video-ai.queue"
+import { videoMetadataQueue } from "../../services/video-processing.service"
 import { pipeline } from "stream/promises"
 
 export const processVideoAfterUpload = async (
@@ -63,6 +64,20 @@ export const processVideoAfterUpload = async (
 
         await videoAIQueue.add(
             "processVideoAI",
+            { videoId },
+            {
+                attempts: 3,
+                backoff: {
+                    type: "exponential",
+                    delay: 5000
+                },
+                removeOnComplete: true,
+                removeOnFail: false
+            }
+        )
+
+        await videoMetadataQueue.add(
+            "extractVideoMetadata",
             { videoId },
             {
                 attempts: 3,

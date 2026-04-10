@@ -33,7 +33,7 @@ const S3Import = () => {
 
     const [scanning, setScanning] = useState(false);
     const [importing, setImporting] = useState(false);
-
+    const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
     const [showAddModal, setShowAddModal] = useState(false);
 
     const [bucketForm, setBucketForm] = useState({
@@ -182,6 +182,7 @@ const S3Import = () => {
                 await api.post("/video/s3/import", {
                     credentialId: selectedBucket,
                     sourceKey: key,
+                    visibility,
                 });
             }
 
@@ -272,6 +273,29 @@ const S3Import = () => {
                             <h2 className="text-lg font-semibold">
                                 Videos ({videoFiles.length})
                             </h2>
+                            <div className="flex items-center gap-4">
+                                <span className="text-sm text-gray-300">Visibility:</span>
+
+                                <button
+                                    onClick={() => setVisibility("PUBLIC")}
+                                    className={`px-4 py-1 rounded-lg text-sm ${visibility === "PUBLIC"
+                                        ? "bg-green-600 text-white"
+                                        : "bg-gray-700 text-gray-300"
+                                        }`}
+                                >
+                                    Public
+                                </button>
+
+                                <button
+                                    onClick={() => setVisibility("PRIVATE")}
+                                    className={`px-4 py-1 rounded-lg text-sm ${visibility === "PRIVATE"
+                                        ? "bg-purple-600 text-white"
+                                        : "bg-gray-700 text-gray-300"
+                                        }`}
+                                >
+                                    Private
+                                </button>
+                            </div>
 
                             <label className="flex items-center gap-2 text-sm">
 
@@ -345,7 +369,6 @@ const S3Import = () => {
                             ))}
 
                         </div>
-
 
                         <button
                             onClick={handleImport}

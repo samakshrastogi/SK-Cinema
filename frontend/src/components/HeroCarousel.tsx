@@ -4,7 +4,7 @@ import HeroCard from "./HeroCard"
 /* ---------------- TYPES ---------------- */
 
 interface Video {
-    id: number
+    publicId: string
     title?: string
     aiTitle?: string
     aiDescription?: string
@@ -101,7 +101,7 @@ const HeroCarousel = ({ videos }: Props) => {
 
             {/* HERO CARD */}
             <HeroCard
-                key={randomVideos[safeIndex].id}
+                key={randomVideos[safeIndex].publicId}
                 video={randomVideos[safeIndex]}
                 onNext={handleNext}
                 onPrev={handlePrev}

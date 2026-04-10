@@ -6,7 +6,7 @@ import {
     getVideoById,
     getAllVideos
 } from "./video.service"
-
+import { nanoid } from "nanoid"
 import { prisma } from "../../config/prisma"
 import { AuthRequest } from "../../middlewares/auth.middleware"
 import { processVideoAfterUpload } from "./video-processing.service"
@@ -163,13 +163,15 @@ export const importSelectedVideos = async (
             if (!exists) {
                 const video = await prisma.video.create({
                     data: {
+                        publicId: nanoid(10), // ✅ ADD THIS LINE
+
                         title: key.split("/").pop() || "Untitled",
                         s3Key: key,
                         size: BigInt(0),
                         uploadSource: "S3_IMPORT",
                         status: "UPLOADED",
                         channelId: user.channel.id,
-                        visibility: "PUBLIC" // ✅ DEFAULT
+                        visibility: "PUBLIC"
                     }
                 })
 
@@ -223,9 +225,9 @@ export const handleGetVideoById = async (
     res: Response
 ) => {
 
-    const id = Number(req.params.id)
+    const publicId = req.params.publicId
 
-    if (!id || isNaN(id)) {
+    if (!publicId) {
         return res.status(400).json({
             success: false,
             message: "Invalid video id"
@@ -234,7 +236,7 @@ export const handleGetVideoById = async (
 
     try {
 
-        const video = await getVideoById(id)
+        const video = await getVideoById(publicId, req.user?.id)
 
         return res.json({
             success: true,
@@ -249,7 +251,6 @@ export const handleGetVideoById = async (
         })
 
     }
-
 }
 
 export const handleGetAIInsights = async (
@@ -335,7 +336,7 @@ export const handleGetChannelPublicVideos = async (req, res) => {
 
         // ✅ FIX HERE
         const formatted = videos.map(v => ({
-            id: v.id,
+            publicId: v.publicId,
             title: v.title,
             aiTitle: v.aiData?.aiTitle ?? null,
             thumbnailKey: v.thumbnailKey,
@@ -391,7 +392,7 @@ export const handleGetChannelPrivateVideos = async (req: AuthRequest, res: Respo
         })
 
         const formatted = videos.map(v => ({
-            id: v.id,
+            publicId: v.publicId,
             title: v.title,
             aiTitle: v.aiData?.aiTitle ?? null,
             thumbnailKey: v.thumbnailKey,

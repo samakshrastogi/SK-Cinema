@@ -109,7 +109,8 @@ export const scanUserBucket = async (
 export const importVideoFromUserBucket = async (
     credentialId: number,
     userId: number,
-    sourceKey: string
+    sourceKey: string,
+    visibility: "PUBLIC" | "PRIVATE" 
 ) => {
     const startTime = Date.now();
 
@@ -193,6 +194,7 @@ export const importVideoFromUserBucket = async (
             uploadSource: "S3_IMPORT",
             status: "UPLOADED",
             channelId: cred.user.channel.id,
+            visibility: visibility || "PUBLIC",
         },
         include: { channel: true },
     });

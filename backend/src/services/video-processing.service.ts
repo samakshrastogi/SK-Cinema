@@ -10,9 +10,14 @@ export const thumbnailQueue = new Queue(
         connection: redisConnection as any
     }
 )
-
 export const videoAIQueue = new Queue(
     "videoAIQueue",
+    {
+        connection: redisConnection as any
+    }
+)
+export const videoMetadataQueue = new Queue(
+    "videoMetadataQueue",
     {
         connection: redisConnection as any
     }
@@ -57,4 +62,13 @@ export const startVideoProcessing = async (videoId: number) => {
         }
     )
 
+    // ✅ NEW: Metadata extraction
+    await videoMetadataQueue.add(
+        "extractVideoMetadata",
+        { videoId },
+        {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5000 }
+        }
+    )
 }

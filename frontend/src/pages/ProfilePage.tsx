@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import AppLayout from "@/layouts/AppLayout"
 import { api } from "@/api/axios"
@@ -22,7 +22,7 @@ interface Stats {
 }
 
 interface Video {
-    id: number
+    publicId: string
     title?: string
     aiTitle?: string
     thumbnailKey?: string
@@ -35,7 +35,7 @@ interface Playlist {
 }
 
 interface RawVideo {
-    id: number
+    publicId: string
     title?: string
     aiTitle?: string
     thumbnailKey?: string
@@ -89,8 +89,8 @@ const ProfilePage = () => {
         if (!Array.isArray(arr)) return []
 
         return arr.map(v => ({
-            id: v.id,
-            title: v.title || v.aiTitle || `Video #${v.id}`,
+            publicId: v.publicId,   // ✅ FIX
+            title: v.title || v.aiTitle || "Untitled",
             aiTitle: v.aiTitle ?? undefined,
             thumbnailKey: v.thumbnailKey
         }))
@@ -357,11 +357,9 @@ const VideoRow = ({ videos }: { videos: Video[] }) => {
     if (!videos.length) return <p className="text-gray-500">No content</p>
 
     return (
-        <div className="flex gap-3 overflow-x-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {videos.map(v => (
-                <div key={v.id} className="min-w-45">
-                    <VideoCard video={v} />
-                </div>
+                <VideoCard key={v.publicId} video={v} />
             ))}
         </div>
     )

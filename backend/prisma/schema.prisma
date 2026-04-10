@@ -57,6 +57,9 @@ model Channel {
 
 model Video {
   id           Int          @id @default(autoincrement())
+
+  publicId     String       @unique @db.VarChar(12) // ✅ ADD THIS
+
   title        String
   s3Key        String       @unique
   size         BigInt
@@ -65,20 +68,22 @@ model Video {
   uploadSource UploadSource
   status       UploadStatus @default(UPLOADING)
 
-  visibility   VideoVisibility @default(PUBLIC) // ✅ NEW FIELD
+  visibility   VideoVisibility @default(PUBLIC)
 
   channelId Int
   channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   aiData VideoAI?
-
+  metadata VideoMetadata?
   videoActions VideoAction[]
 
   createdAt DateTime @default(now())
 
   @@index([channelId])
-  @@index([visibility]) // optional but useful
+  @@index([visibility])
+  @@index([publicId]) // ✅ ADD THIS
 }
+
 
 model S3Credential {
   id         Int      @id @default(autoincrement())
@@ -154,6 +159,39 @@ model Playlist {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model VideoMetadata {
+  id Int @id @default(autoincrement())
+
+  videoId Int @unique
+  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  duration Int              // seconds
+  totalFrames Int?          // total frame count
+
+  width Int?
+  height Int?
+
+  aspectRatio String?       // e.g. "16:9"
+  orientation Orientation?  // PORTRAIT / LANDSCAPE / SQUARE
+
+  fps Float?
+
+  hasAudio Boolean @default(false)
+
+  videoCodec String?
+  audioCodec String?
+
+  deviceInfo String?        // e.g. "iPhone 13", "Canon EOS 80D"
+
+  createdAt DateTime @default(now())
+}
+
+enum Orientation {
+  PORTRAIT
+  LANDSCAPE
+  SQUARE
 }
 
 enum UploadStatus {
