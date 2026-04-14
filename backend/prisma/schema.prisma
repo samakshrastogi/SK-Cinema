@@ -19,10 +19,12 @@ model User {
   name String? @db.VarChar(120)
 
   avatarKey String?
+  coverKey String?
 
   provider AuthProvider @default(LOCAL)
 
   isVerified Boolean @default(false)
+  platformAdmin Boolean @default(false)
 
   otp       String?
   otpExpiry DateTime?
@@ -36,8 +38,37 @@ model User {
   s3Credentials S3Credential[]
   videoActions  VideoAction[]
   playlists     Playlist[]
+  views         VideoView[]
+  reactions     VideoReaction[]
+  comments      VideoComment[]
+  shares        VideoShare[]
+  watchHistory  WatchHistory[]
+  subscriptions Subscription[] @relation("UserSubscriptions")
+  organizationMemberships OrganizationMembership[]
+  organizationInvitesSent OrganizationInvite[] @relation("InviteCreator")
+  organizationInvitesAccepted OrganizationInvite[] @relation("InviteAccepter")
+  organizationUploaderAccess OrganizationAllowedUploader[]
+  ownedOrganizations Organization[] @relation("OrganizationOwner")
+  notifications Notification[]
+  logins UserLogin[]
+  activeOrganizationId Int?
+  activeOrganization Organization? @relation("ActiveOrganization", fields: [activeOrganizationId], references: [id], onDelete: SetNull)
 
   @@index([name])
+}
+
+model UserLogin {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  method LoginMethod @default(LOCAL)
+  sessionLengthSec Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Channel {
@@ -50,6 +81,7 @@ model Channel {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   videos Video[]
+  subscribers Subscription[] @relation("ChannelSubscribers")
 
   createdAt DateTime @default(now())
 }
@@ -72,16 +104,238 @@ model Video {
 
   channelId Int
   channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  organizationId Int?
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   aiData VideoAI?
   metadata VideoMetadata?
   videoActions VideoAction[]
+  views VideoView[]
+  reactions VideoReaction[]
+  comments VideoComment[]
+  shares VideoShare[]
+  watchHistory WatchHistory[]
 
   createdAt DateTime @default(now())
 
   @@index([channelId])
   @@index([visibility])
   @@index([publicId]) // ✅ ADD THIS
+  @@index([organizationId])
+}
+
+model VideoView {
+  id Int @id @default(autoincrement())
+
+  videoId Int
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  userId Int?
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([videoId])
+  @@index([userId])
+}
+
+model VideoReaction {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoId Int
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  type ReactionType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, videoId])
+  @@index([videoId, type])
+}
+
+model VideoComment {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoId Int
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  text String
+
+  createdAt DateTime @default(now())
+
+  @@index([videoId])
+  @@index([userId])
+}
+
+model VideoShare {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoId Int
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  method ShareMethod @default(COPY_LINK)
+  createdAt DateTime @default(now())
+
+  @@index([videoId])
+  @@index([userId])
+}
+
+model Subscription {
+  id Int @id @default(autoincrement())
+
+  subscriberId Int
+  subscriber User @relation("UserSubscriptions", fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  channelId Int
+  channel Channel @relation("ChannelSubscribers", fields: [channelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([subscriberId, channelId])
+  @@index([channelId])
+}
+
+model WatchHistory {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoId Int
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  watchedSeconds Int @default(0)
+  lastPositionSeconds Int @default(0)
+  lastWatchedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, videoId])
+  @@index([userId, lastWatchedAt])
+  @@index([videoId])
+}
+
+model Organization {
+  id Int @id @default(autoincrement())
+
+  name String
+  slug String @unique
+  joinToken String @unique
+  privateJoinToken String @unique
+  description String?
+
+  ownerId Int
+  owner User @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  allowedDomain String?
+
+  allowPublicContent Boolean @default(true)
+  allowPrivateContent Boolean @default(false)
+
+  uploadPolicy OrganizationUploadPolicy @default(ADMINS_ONLY)
+
+  trialStartAt DateTime @default(now())
+  trialEndsAt DateTime
+  billingStatus OrganizationBillingStatus @default(TRIAL_ACTIVE)
+  subscriptionPlan OrganizationSubscriptionPlan @default(NONE)
+  subscriptionEndsAt DateTime?
+  blockedAt DateTime?
+
+  members OrganizationMembership[]
+  invites OrganizationInvite[]
+  allowedUploaders OrganizationAllowedUploader[]
+  videos Video[]
+  activeUsers User[] @relation("ActiveOrganization")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrganizationMembership {
+  id Int @id @default(autoincrement())
+
+  organizationId Int
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role OrganizationRole @default(MEMBER)
+  status OrganizationMembershipStatus @default(PENDING)
+
+  requestedAt DateTime @default(now())
+  approvedAt DateTime?
+  leftAt DateTime?
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, status])
+  @@index([userId, status])
+}
+
+model OrganizationInvite {
+  id Int @id @default(autoincrement())
+
+  organizationId Int
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  email String
+  status OrganizationInviteStatus @default(PENDING)
+  token String @unique
+  expiresAt DateTime
+
+  createdByUserId Int
+  createdBy User @relation("InviteCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  acceptedByUserId Int?
+  acceptedBy User? @relation("InviteAccepter", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  acceptedAt DateTime?
+
+  @@index([organizationId, email])
+  @@index([token])
+}
+
+model OrganizationAllowedUploader {
+  id Int @id @default(autoincrement())
+
+  organizationId Int
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([organizationId, userId])
+}
+
+model Notification {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title String
+  message String
+  link String?
+  type NotificationType @default(GENERAL)
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
 }
 
 
@@ -221,4 +475,71 @@ enum VideoActionType {
 enum VideoVisibility {
   PUBLIC
   PRIVATE
+  ORGANIZATION
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
+}
+
+enum ShareMethod {
+  COPY_LINK
+  NATIVE
+  WHATSAPP
+  TELEGRAM
+  X
+  FACEBOOK
+  LINKEDIN
+  EMAIL
+}
+
+enum OrganizationRole {
+  ADMIN
+  MEMBER
+}
+
+enum OrganizationMembershipStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  LEFT
+}
+
+enum OrganizationInviteStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+}
+
+enum OrganizationUploadPolicy {
+  ALL_MEMBERS
+  SPECIFIC_USERS
+  ADMINS_ONLY
+}
+
+enum OrganizationBillingStatus {
+  TRIAL_ACTIVE
+  ACTIVE
+  EXPIRED
+}
+
+enum OrganizationSubscriptionPlan {
+  NONE
+  TRIAL_FREE
+  SIX_MONTH
+  YEARLY_INITIAL
+  YEARLY_RENEWAL
+}
+
+enum NotificationType {
+  GENERAL
+  ORG_INVITE
+  ORG_APPROVED
+  VIDEO
+}
+
+enum LoginMethod {
+  LOCAL
+  GOOGLE
 }

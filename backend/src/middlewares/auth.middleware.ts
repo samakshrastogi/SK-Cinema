@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express"
 import jwt from "jsonwebtoken"
+import { prisma } from "../config/prisma"
 
 const JWT_SECRET = process.env.JWT_SECRET!
 
@@ -14,7 +15,7 @@ export interface AuthRequest extends Request {
     }
 }
 
-export const authenticate = (
+export const authenticate = async (
     req: AuthRequest,
     res: Response,
     next: NextFunction
@@ -46,6 +47,18 @@ export const authenticate = (
         req.user = {
             id: decoded.sub,
             email: decoded.email
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.sub },
+            select: { isVerified: true }
+        })
+
+        if (!user?.isVerified) {
+            return res.status(403).json({
+                success: false,
+                message: "Account is not verified"
+            })
         }
 
         next()

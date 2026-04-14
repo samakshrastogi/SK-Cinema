@@ -43,7 +43,7 @@ const runWhisper = (audioPath: string, outputDir: string): Promise<string> => {
 --language en \
 --output_dir "${outputDir}"`
 
-        log("🎤 Whisper started (60s audio)")
+        log("🎤 Whisper started")
 
         exec(cmd, { maxBuffer: 1024 * 1024 * 100 }, (err, stdout, stderr) => {
 
@@ -127,6 +127,9 @@ const processVideoAI = async (job: Job) => {
 
     const totalStart = now()
     const { videoId } = job.data
+    const updateProgress = async (progress: number) => {
+        await job.updateProgress({ videoId, progress })
+    }
 
     log(`\n🚀 JOB STARTED → Video ${videoId}`)
 
@@ -139,11 +142,13 @@ const processVideoAI = async (job: Job) => {
     const createdFiles: string[] = []
 
     try {
+        await updateProgress(5)
 
         const step1 = now()
         const video = await prisma.video.findUnique({ where: { id: videoId } })
         if (!video) throw new Error("Video not found")
         log(`⏱ Fetch video DB: ${timeTaken(step1)}`)
+        await updateProgress(12)
 
         const step2 = now()
         await prisma.videoAI.update({
@@ -151,9 +156,10 @@ const processVideoAI = async (job: Job) => {
             data: { status: "processing" }
         })
         log(`⏱ Update DB status: ${timeTaken(step2)}`)
+        await updateProgress(18)
 
         const step3 = now()
-        log("⬇️ Downloading video from S3")
+        log("⬇️ Downloading video")
         const obj = await s3.send(new GetObjectCommand({
             Bucket: process.env.AWS_BUCKET!,
             Key: video.s3Key
@@ -163,9 +169,10 @@ const processVideoAI = async (job: Job) => {
         ensureExists(tempVideo)
         createdFiles.push(tempVideo)
         log(`⏱ Download done: ${timeTaken(step3)}`)
+        await updateProgress(35)
 
         const step4 = now()
-        log("🎵 Extracting 60s audio")
+        log("🎵 Extracting audio")
         await new Promise((resolve, reject) => {
             ffmpeg(tempVideo)
                 .noVideo()
@@ -180,10 +187,12 @@ const processVideoAI = async (job: Job) => {
         ensureExists(tempAudio)
         createdFiles.push(tempAudio)
         log(`⏱ Audio extraction: ${timeTaken(step4)}`)
+        await updateProgress(55)
 
         const step5 = now()
         const transcript = await runWhisper(tempAudio, tmpDir)
         log(`⏱ Whisper total: ${timeTaken(step5)}`)
+        await updateProgress(72)
 
         const step6 = now()
         const raw = await runOllama(`
@@ -200,7 +209,8 @@ RETURN ONLY JSON:
 Transcript:
 ${shorten(transcript)}
 `)
-        log(`⏱ AI generation: ${timeTaken(step6)}`)
+        log(`⏱ Data generation: ${timeTaken(step6)}`)
+        await updateProgress(88)
 
         const step7 = now()
         const parsed = extractJSON(raw)
@@ -221,9 +231,11 @@ ${shorten(transcript)}
         })
 
         log(`⏱ DB save: ${timeTaken(step7)}`)
+        await updateProgress(100)
 
         log(`\n✅ JOB COMPLETED → Video ${videoId}`)
-        log(`🔥 TOTAL TIME: ${timeTaken(totalStart)}\n`)
+        log(`🔥 TOTAL TIME (Video ${videoId}): ${timeTaken(totalStart)}\n`)
+        return { videoId }
 
     } catch (err) {
 
@@ -251,7 +263,7 @@ const worker = new Worker(
     processVideoAI,
     {
         connection: redisConnection as any,
-        concurrency: 1
+        concurrency: 2
     }
 )
 

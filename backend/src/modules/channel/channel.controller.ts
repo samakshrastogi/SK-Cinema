@@ -19,10 +19,10 @@ export const handleCreateChannel = async (
 
         const { name, username, description } = req.body
 
-        if (!name || !username) {
+        if (!name) {
             return res.status(400).json({
                 success: false,
-                message: "Channel name and username are required"
+                message: "Channel name is required"
             })
         }
 

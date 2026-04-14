@@ -1,10 +1,11 @@
 import dotenv from "dotenv";
 import http from "http";
 import { Server } from "socket.io";
-import { QueueEvents } from "bullmq";
+import { QueueEvents, Queue } from "bullmq";
 
 import app from "./app";
 import { redisConnection } from "./config/redis";
+import { setSocketServer } from "./services/realtime.service";
 
 dotenv.config();
 
@@ -34,6 +35,10 @@ io.on("connection", (socket) => {
 /* ---------------- QUEUE EVENTS ---------------- */
 
 const queueEvents = new QueueEvents("videoAIQueue", {
+  connection: redisConnection as any
+});
+setSocketServer(io);
+const videoAIQueue = new Queue("videoAIQueue", {
   connection: redisConnection as any
 });
 
@@ -77,6 +82,22 @@ queueEvents.on("completed", ({ returnvalue }) => {
 
   io.emit("ai-completed", { videoId });
 
+});
+
+queueEvents.on("failed", async ({ jobId }) => {
+  if (!jobId) return;
+
+  try {
+    const job = await videoAIQueue.getJob(jobId);
+    const videoId =
+      typeof job?.data?.videoId === "number" ? job.data.videoId : null;
+
+    if (!videoId) return;
+
+    io.emit("ai-failed", { videoId });
+  } catch (error) {
+    console.error("Failed to emit ai-failed event", error);
+  }
 });
 
 /* ---------------- START SERVER ---------------- */

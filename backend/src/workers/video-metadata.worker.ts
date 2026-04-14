@@ -2,23 +2,33 @@ import { Worker, Job } from "bullmq"
 import { redisConnection } from "../config/redis"
 import { prisma } from "../config/prisma"
 import { extractVideoMetadata } from "../services/video-metadata.service"
+import { Orientation } from "@prisma/client"
 
 new Worker(
     "videoMetadataQueue",
     async (job: Job) => {
 
-        const { videoId } = job.data
+        const rawVideoId = job.data?.videoId
+        const videoId = Number(rawVideoId)
+        if (!Number.isFinite(videoId)) {
+            throw new Error("Invalid videoId in metadata job")
+        }
 
         console.log("[metadata] started", videoId)
 
         const metadata = await extractVideoMetadata(videoId)
+        const orientation = (metadata.orientation || "LANDSCAPE") as Orientation
 
         await prisma.videoMetadata.upsert({
             where: { videoId },
-            update: metadata,
+            update: {
+                ...metadata,
+                orientation
+            },
             create: {
-                videoId,
-                ...metadata
+                video: { connect: { id: videoId } },
+                ...metadata,
+                orientation
             }
         })
 
@@ -26,6 +36,6 @@ new Worker(
     },
     {
         connection: redisConnection as any,
-        concurrency: 2
+        concurrency: 5
     }
 )

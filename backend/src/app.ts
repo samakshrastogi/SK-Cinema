@@ -13,6 +13,9 @@ import videoRoutes from "./modules/video/video.routes"
 import channelRoutes from "./modules/channel/channel.routes"
 import aiRoutes from "./modules/ai/ai.routes"
 import videoActionRoutes from "./modules/video/video-action.routes"
+import organizationRoutes from "./modules/organization/organization.routes"
+import notificationRoutes from "./modules/notification/notification.routes"
+import adminRoutes from "./modules/admin/admin.routes"
 
 import { prisma } from "./config/prisma"
 import { s3 } from "./config/s3"
@@ -132,14 +135,6 @@ passport.use(
                         }
                     })
 
-                    await prisma.channel.create({
-                        data: {
-                            name: username,
-                            username,
-                            userId: user.id
-                        }
-                    })
-
                 }
 
                 /* ---------------- UPDATE USER ---------------- */
@@ -162,6 +157,15 @@ passport.use(
 
                 }
 
+                /* ---------------- LOGIN TRACKING ---------------- */
+
+                const loginRecord = await prisma.userLogin.create({
+                    data: {
+                        userId: user.id,
+                        method: "GOOGLE"
+                    }
+                })
+
                 /* ---------------- JWT TOKEN ---------------- */
 
                 const token = jwt.sign(
@@ -170,7 +174,7 @@ passport.use(
                     { expiresIn: "30d" }
                 )
 
-                return done(null, { token, user })
+                return done(null, { token, user, loginId: loginRecord.id })
 
             }
 
@@ -202,6 +206,9 @@ app.use("/api/video", videoRoutes)
 app.use("/api/channel", channelRoutes)
 app.use("/api/ai", aiRoutes)
 app.use("/api/video-actions", videoActionRoutes)
+app.use("/api/organization", organizationRoutes)
+app.use("/api/notification", notificationRoutes)
+app.use("/api/admin", adminRoutes)
 
 /* ---------------- HEALTH CHECK ---------------- */
 

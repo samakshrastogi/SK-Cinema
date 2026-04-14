@@ -248,19 +248,9 @@ export const verifyOTP = async (email: string, otp: string) => {
     if (user.otp !== otp) throw new AuthError("Incorrect OTP")
     if (user.otpExpiry < new Date()) throw new AuthError("OTP expired")
 
-    await prisma.$transaction(async (tx) => {
-        await tx.user.update({
-            where: { id: user.id },
-            data: { isVerified: true, otp: null, otpExpiry: null },
-        })
-
-        await tx.channel.create({
-            data: {
-                name: user.name || user.username!,
-                username: user.username!,
-                userId: user.id,
-            },
-        })
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { isVerified: true, otp: null, otpExpiry: null },
     })
 
     return { message: "Account verified successfully" }
@@ -296,7 +286,8 @@ export const loginUser = async (
             email: user.email,
             username: user.username,
             name: user.name,
-            avatarKey: user.avatarKey
+            avatarKey: user.avatarKey,
+            platformAdmin: user.platformAdmin
         },
     }
 }

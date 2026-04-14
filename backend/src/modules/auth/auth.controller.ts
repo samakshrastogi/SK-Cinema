@@ -1,4 +1,6 @@
 import { Request, Response } from "express"
+import jwt from "jsonwebtoken"
+import { prisma } from "../../config/prisma"
 import {
     registerUser,
     verifyOTP,
@@ -6,6 +8,8 @@ import {
     generateResetToken,
     resetPassword,
 } from "./auth.service"
+
+const JWT_SECRET = process.env.JWT_SECRET as string
 
 const handleError = (res: Response, error: any) => {
     const status = error.statusCode || 500
@@ -78,10 +82,19 @@ export const login = async (req: Request, res: Response) => {
         const { email, password, remember } = req.body
 
         const result = await loginUser(email, password, remember)
+        const loginRecord = await prisma.userLogin.create({
+            data: {
+                userId: result.user.id,
+                method: "LOCAL"
+            }
+        })
 
         return res.status(200).json({
             success: true,
-            data: result,
+            data: {
+                ...result,
+                loginId: loginRecord.id
+            },
         })
 
     } catch (error: any) {
@@ -143,4 +156,48 @@ export const resetUserPassword = async (
 
     }
 
+}
+
+export const endSession = async (req: Request, res: Response) => {
+    try {
+        const { token, loginId, durationSec } = req.body || {}
+
+        if (!token || !loginId) {
+            return res.status(400).json({
+                success: false,
+                message: "token and loginId are required"
+            })
+        }
+
+        const decoded = jwt.verify(token, JWT_SECRET) as unknown as {
+            sub: number
+            email: string
+        }
+
+        const loginRow = await prisma.userLogin.findUnique({
+            where: { id: Number(loginId) }
+        })
+
+        if (!loginRow || loginRow.userId !== decoded.sub) {
+            return res.status(404).json({
+                success: false,
+                message: "Login session not found"
+            })
+        }
+
+        const durationValue = Number(durationSec)
+        if (Number.isFinite(durationValue) && durationValue >= 0) {
+            await prisma.userLogin.update({
+                where: { id: loginRow.id },
+                data: { sessionLengthSec: Math.floor(durationValue) }
+            })
+        }
+
+        return res.json({ success: true })
+    } catch (error: any) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to end session"
+        })
+    }
 }

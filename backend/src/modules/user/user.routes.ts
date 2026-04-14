@@ -5,6 +5,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { getSignedUrl as getCFSignedUrl } from "@aws-sdk/cloudfront-signer"
 import { s3 } from "../../config/s3"
+import { generateUniqueChannelUsername } from "../channel/channel.service"
 
 const router = Router()
 
@@ -55,16 +56,16 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
         const [videosCount, playlistsCount, favoritesCount, commentsCount] =
             await Promise.all([
                 prisma.video.count({
-                    where: { channelId: user.channel?.id }
+                    where: { channelId: user.channel?.id, status: "UPLOADED" }
                 }),
                 prisma.playlist.count({
                     where: { userId: user.id }
                 }),
-                prisma.videoAction.count({
-                    where: { userId: user.id, actionType: "LIKE" }
+                prisma.videoReaction.count({
+                    where: { userId: user.id, type: "LIKE" }
                 }),
-                prisma.videoAction.count({
-                    where: { userId: user.id, actionType: "COMMENT" }
+                prisma.videoComment.count({
+                    where: { userId: user.id }
                 })
             ])
 
@@ -75,34 +76,75 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
                 channelId: user.channel?.id,
                 status: "UPLOADED"
             },
-            include: { aiData: true },
+            include: {
+                aiData: true,
+                channel: {
+                    select: {
+                        name: true,
+                        user: {
+                            select: {
+                                avatarKey: true,
+                                name: true
+                            }
+                        }
+                    }
+                }
+            },
             orderBy: { createdAt: "desc" },
             take: 12
         })
 
         /* ---------------- HISTORY (TEMP SAFE) ---------------- */
-        // ⚠️ WATCH not in enum → using LIKE as fallback
-        const historyActions = await prisma.videoAction.findMany({
+        const historyActions = await prisma.watchHistory.findMany({
             where: {
-                userId: user.id,
-                actionType: "LIKE"
+                userId: user.id
             },
             include: {
-                video: { include: { aiData: true } }
+                video: {
+                    include: {
+                        aiData: true,
+                        channel: {
+                            select: {
+                                name: true,
+                                user: {
+                                    select: {
+                                        avatarKey: true,
+                                        name: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             },
-            orderBy: { createdAt: "desc" },
+            orderBy: { lastWatchedAt: "desc" },
             take: 12
         })
 
         /* ---------------- FAVORITES ---------------- */
 
-        const favoriteActions = await prisma.videoAction.findMany({
+        const favoriteActions = await prisma.videoReaction.findMany({
             where: {
                 userId: user.id,
-                actionType: "LIKE"
+                type: "LIKE"
             },
             include: {
-                video: { include: { aiData: true } }
+                video: {
+                    include: {
+                        aiData: true,
+                        channel: {
+                            select: {
+                                name: true,
+                                user: {
+                                    select: {
+                                        avatarKey: true,
+                                        name: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             },
             orderBy: { createdAt: "desc" },
             take: 12
@@ -135,11 +177,18 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
                     email: user.email,
                     username: user.username,
                     name: user.name,
+                    platformAdmin: user.platformAdmin,
                     avatarKey: user.avatarKey,
                     avatarUrl: user.avatarKey
                         ? user.avatarKey.startsWith("http")
                             ? user.avatarKey
                             : signCloudFrontUrl(user.avatarKey)
+                        : null,
+                    coverKey: user.coverKey,
+                    coverUrl: user.coverKey
+                        ? user.coverKey.startsWith("http")
+                            ? user.coverKey
+                            : signCloudFrontUrl(user.coverKey)
                         : null,
                     provider: user.provider,
                     createdAt: user.createdAt
@@ -158,36 +207,95 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
 
                 uploadedVideos: uploadedVideos.map(v => ({
                     id: v.id,
+                    publicId: v.publicId,
                     title: v.title,
                     aiTitle: v.aiData?.aiTitle ?? null,
-                    thumbnailKey: v.thumbnailKey
+                    thumbnailKey: v.thumbnailKey,
+                    channel: { name: v.channel?.name || "Unknown channel" },
+                    uploaderAvatarKey: v.channel?.user?.avatarKey ?? null,
+                    uploaderAvatarUrl: v.channel?.user?.avatarKey
+                        ? signCloudFrontUrl(v.channel.user.avatarKey)
+                        : null,
+                    uploaderName: v.channel?.user?.name ?? null,
+                    createdAt: v.createdAt
                 })),
 
-                history: historyActions.map(h => ({
-                    id: h.video.id,
-                    title: h.video.title || h.video.aiData?.aiTitle || "Untitled",
-                    aiTitle: h.video.aiData?.aiTitle ?? null,
-                    thumbnailKey: h.video.thumbnailKey
-                })),
+                history: historyActions.map(h => {
+                    const video = h.video as typeof h.video & {
+                        channel?: {
+                            name?: string | null
+                            user?: { avatarKey?: string | null, name?: string | null }
+                        }
+                    }
 
-                favorites: favoriteActions.map(f => ({
-                    id: f.video.id,
-                    title: f.video.title,
-                    aiTitle: f.video.aiData?.aiTitle ?? null,
-                    thumbnailKey: f.video.thumbnailKey
-                })),
+                    return {
+                        publicId: video.publicId,
+                        id: video.id,
+                        title: video.title || video.aiData?.aiTitle || "Untitled",
+                        aiTitle: video.aiData?.aiTitle ?? null,
+                        thumbnailKey: video.thumbnailKey,
+                        channel: { name: video.channel?.name || "Unknown channel" },
+                        uploaderAvatarKey: video.channel?.user?.avatarKey ?? null,
+                        uploaderAvatarUrl: video.channel?.user?.avatarKey
+                            ? signCloudFrontUrl(video.channel.user.avatarKey)
+                            : null,
+                        uploaderName: video.channel?.user?.name ?? null,
+                        createdAt: h.lastWatchedAt
+                    }
+                }),
+
+                favorites: favoriteActions.map(f => {
+                    const video = f.video as typeof f.video & {
+                        channel?: {
+                            name?: string | null
+                            user?: { avatarKey?: string | null, name?: string | null }
+                        }
+                    }
+
+                    return {
+                        publicId: video.publicId,
+                        id: video.id,
+                        title: video.title,
+                        aiTitle: video.aiData?.aiTitle ?? null,
+                        thumbnailKey: video.thumbnailKey,
+                        channel: { name: video.channel?.name || "Unknown channel" },
+                        uploaderAvatarKey: video.channel?.user?.avatarKey ?? null,
+                        uploaderAvatarUrl: video.channel?.user?.avatarKey
+                            ? signCloudFrontUrl(video.channel.user.avatarKey)
+                            : null,
+                        uploaderName: video.channel?.user?.name ?? null,
+                        createdAt: video.createdAt
+                    }
+                }),
 
                 /* ---------- PLAYLISTS (FIXED MAPPING) ---------- */
 
                 playlists: playlists.map(p => ({
                     id: p.id,
                     name: p.name,
-                    videos: p.actions.map(a => ({
-                        id: a.video.id,
-                        title: a.video.title || a.video.aiData?.aiTitle || "Untitled",
-                        aiTitle: a.video.aiData?.aiTitle ?? null,
-                        thumbnailKey: a.video.thumbnailKey
-                    }))
+                    videos: p.actions.map(a => {
+                        const video = a.video as typeof a.video & {
+                            channel?: {
+                                name?: string | null
+                                user?: { avatarKey?: string | null, name?: string | null }
+                            }
+                        }
+
+                        return {
+                            publicId: video.publicId,
+                            id: video.id,
+                            title: video.title || video.aiData?.aiTitle || "Untitled",
+                            aiTitle: video.aiData?.aiTitle ?? null,
+                            thumbnailKey: video.thumbnailKey,
+                            channel: { name: video.channel?.name || "Unknown channel" },
+                            uploaderAvatarKey: video.channel?.user?.avatarKey ?? null,
+                            uploaderAvatarUrl: video.channel?.user?.avatarKey
+                                ? signCloudFrontUrl(video.channel.user.avatarKey)
+                                : null,
+                            uploaderName: video.channel?.user?.name ?? null,
+                            createdAt: video.createdAt
+                        }
+                    })
                 }))
             }
         })
@@ -215,23 +323,56 @@ router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
             })
         }
 
-        const { name, username, channelName, description } = req.body
+        const {
+            name,
+            username,
+            channelName,
+            channelTitle,
+            description,
+            channelDescription
+        } = req.body
+
+        const finalChannelName = (channelTitle ?? channelName ?? "").trim()
+        const finalChannelDescription = (
+            channelDescription ?? description ?? ""
+        ).trim()
 
         const user = await prisma.user.update({
             where: { id: req.user.id },
             data: {
-                name: name || undefined,
-                username: username || undefined
+                name: name?.trim() || undefined,
+                username: username?.trim() || undefined
             }
         })
 
-        const channel = await prisma.channel.update({
-            where: { userId: req.user.id },
-            data: {
-                name: channelName || undefined,
-                description: description || undefined
-            }
+        const existingChannel = await prisma.channel.findUnique({
+            where: { userId: req.user.id }
         })
+
+        let channel = existingChannel
+
+        if (existingChannel) {
+            channel = await prisma.channel.update({
+                where: { userId: req.user.id },
+                data: {
+                    name: finalChannelName || undefined,
+                    description: finalChannelDescription || undefined
+                }
+            })
+        } else if (finalChannelName) {
+            const generatedUsername = await generateUniqueChannelUsername(
+                username?.trim() || finalChannelName || user.name || `user-${user.id}`
+            )
+
+            channel = await prisma.channel.create({
+                data: {
+                    name: finalChannelName,
+                    description: finalChannelDescription || undefined,
+                    username: generatedUsername,
+                    userId: req.user.id
+                }
+            })
+        }
 
         return res.json({
             success: true,
@@ -268,16 +409,19 @@ router.post("/avatar-upload-url", authenticate, async (req: AuthRequest, res) =>
             include: { channel: true }
         })
 
-        if (!user?.channel) {
+        if (!user) {
             return res.status(400).json({
                 success: false,
-                message: "Channel not found"
+                message: "User not found"
             })
         }
 
         const ext = fileType.split("/")[1]
 
-        const key = `${user.channel.username}/avatar/avatar_${Date.now()}.${ext}`
+        const keyPrefix = user.channel?.username
+            ? `${user.channel.username}/avatar`
+            : `users/${user.id}/avatar`
+        const key = `${keyPrefix}/avatar_${Date.now()}.${ext}`
 
         const command = new PutObjectCommand({
             Bucket: process.env.AWS_BUCKET!,
@@ -334,6 +478,92 @@ router.post("/avatar", authenticate, async (req: AuthRequest, res) => {
         return res.status(500).json({
             success: false,
             message: "Failed to save avatar"
+        })
+    }
+})
+
+router.post("/cover-upload-url", authenticate, async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
+        }
+
+        const { fileType } = req.body
+
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            include: { channel: true }
+        })
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        const ext = fileType.split("/")[1]
+        const keyPrefix = user.channel?.username
+            ? `${user.channel.username}/cover`
+            : `users/${user.id}/cover`
+        const key = `${keyPrefix}/cover_${Date.now()}.${ext}`
+
+        const command = new PutObjectCommand({
+            Bucket: process.env.AWS_BUCKET!,
+            Key: key,
+            ContentType: fileType
+        })
+
+        const uploadUrl = await getSignedUrl(s3, command, {
+            expiresIn: 60 * 5
+        })
+
+        return res.json({
+            success: true,
+            uploadUrl,
+            key
+        })
+    } catch (error) {
+        console.error("Cover upload url error:", error)
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to generate cover upload URL"
+        })
+    }
+})
+
+router.post("/cover", authenticate, async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            })
+        }
+
+        const { key } = req.body
+
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { coverKey: key }
+        })
+
+        const coverUrl = signCloudFrontUrl(key)
+
+        return res.json({
+            success: true,
+            coverUrl
+        })
+    } catch (error) {
+        console.error("Cover save error:", error)
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to save cover photo"
         })
     }
 })

@@ -5,12 +5,14 @@ import {
     PutObjectCommand,
     HeadObjectCommand,
 } from "@aws-sdk/client-s3";
+import { nanoid } from "nanoid";
 
 import { prisma } from "../../config/prisma";
 import { encrypt, decrypt } from "../../utils/crypto";
 import { s3 } from "../../config/s3";
 import { generateThumbnail } from "../../utils/thumbnail";
-import { videoAIQueue } from "../../queues/video-ai.queue";
+import { emitNewVideoUploaded } from "../../services/realtime.service";
+import { processVideoAfterUpload } from "./video-processing.service";
 
 import fs from "fs";
 import path from "path";
@@ -187,6 +189,7 @@ export const importVideoFromUserBucket = async (
 
     const video = await prisma.video.create({
         data: {
+            publicId: nanoid(10),
             title: fileName,
             s3Key: destinationKey,
             thumbnailKey,
@@ -199,28 +202,17 @@ export const importVideoFromUserBucket = async (
         include: { channel: true },
     });
 
-    await prisma.videoAI.create({
-        data: {
-            videoId: video.id,
-            status: "pending",
-            keywords: [],
-            tags: [],
-        },
-    });
-
-    await videoAIQueue.add(
-        "processVideoAI",
-        { videoId: video.id },
-        {
-            attempts: 3,
-            backoff: {
-                type: "exponential",
-                delay: 5000,
-            },
-            removeOnComplete: true,
-            removeOnFail: false,
-        }
+    await processVideoAfterUpload(
+        video.id,
+        destinationKey,
+        cred.user.channel.username
     );
+
+    emitNewVideoUploaded({
+        publicId: video.publicId,
+        title: video.title || "Untitled",
+        uploaderName: cred.user.name || cred.user.channel.name
+    })
 
     try {
         fs.existsSync(tempVideoPath) && fs.unlinkSync(tempVideoPath);

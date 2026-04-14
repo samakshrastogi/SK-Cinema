@@ -3,14 +3,22 @@ import { authenticate } from "../../middlewares/auth.middleware"
 
 import {
     getPresignedUrl,
+    getThumbnailPresignedUrl,
     finishUpload,
     handleScanS3,
     importSelectedVideos,
     handleGetVideoById,
     handleGetVideos,
+    handleGetPortraitVideos,
+    handleGetOrganizationRowVideos,
+    handleSearchVideos,
     handleGetAIInsights,
     handleGetChannelPublicVideos, 
-    handleGetChannelPrivateVideos
+    handleGetChannelPrivateVideos,
+    handleGetChannelOrganizationVideos,
+    handleGetUploadSpritesheet,
+    handleSaveThumbnailFromSpritesheet,
+    handleUpdateOwnedVideo
 } from "./video.controller"
 
 import {
@@ -23,7 +31,10 @@ import {
 const router = Router()
 
 router.post("/upload/presign", authenticate, getPresignedUrl)
+router.post("/upload/thumbnail-presign", authenticate, getThumbnailPresignedUrl)
 router.post("/upload/complete", authenticate, finishUpload)
+router.get("/upload/:videoId/spritesheet", authenticate, handleGetUploadSpritesheet)
+router.post("/upload/:videoId/spritesheet/select-thumbnail", authenticate, handleSaveThumbnailFromSpritesheet)
 
 router.get("/scan", authenticate, handleScanS3)
 router.post("/import", authenticate, importSelectedVideos)
@@ -34,8 +45,11 @@ router.get("/s3/buckets/:id/scan", authenticate, scanBucket)
 router.post("/s3/import", authenticate, importVideo)
 
 router.get("/ai-insights", authenticate, handleGetAIInsights)
+router.get("/search", authenticate, handleSearchVideos)
 
-router.get("/", handleGetVideos)
+router.get("/", authenticate, handleGetVideos)
+router.get("/portrait", authenticate, handleGetPortraitVideos)
+router.get("/organization/:organizationId", authenticate, handleGetOrganizationRowVideos)
 
 router.get("/channel/:channelId/public", handleGetChannelPublicVideos)
 
@@ -44,6 +58,12 @@ router.get(
     authenticate,
     handleGetChannelPrivateVideos
 )
+router.get(
+    "/channel/:channelId/organization",
+    authenticate,
+    handleGetChannelOrganizationVideos
+)
+router.patch("/:publicId", authenticate, handleUpdateOwnedVideo)
 
 // ✅ KEEP THIS LAST (VERY IMPORTANT)
 router.get("/:publicId", authenticate, handleGetVideoById)
