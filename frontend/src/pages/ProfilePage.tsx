@@ -365,113 +365,161 @@ const ProfilePage = () => {
 
     return (
         <AppLayout>
-            <div className="space-y-5 pb-6">
-                <div className="relative h-37.5 sm:h-50 md:h-65 rounded-xl overflow-hidden">
-                    <img
-                        src={user?.coverUrl || "https://i.pinimg.com/originals/4f/de/0e/4fde0ed05a14d7f6c1a0b19daec5a731.jpg"}
-                        alt="Profile banner"
-                        className="w-full h-full object-cover"
-                    />
-                </div>
+            <div className="space-y-6 pb-8">
 
-                <div className="-mt-12 sm:-mt-16 px-4 sm:px-6 flex flex-col gap-4 relative z-10">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <label className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-3 border-black/80 overflow-hidden cursor-pointer shrink-0 bg-black/20">
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0]
-                                        if (file) uploadAvatar(file)
-                                    }}
-                                />
+                {/* HERO SECTION */}
+                <div className="relative">
 
-                                <UserAvatar
-                                    name={user?.name}
-                                    avatarUrl={user?.avatarUrl}
-                                    avatarKey={user?.avatarKey}
-                                    alt={user?.name || "User avatar"}
-                                    className="w-full h-full sm:w-full sm:h-full text-lg sm:text-2xl"
-                                />
-                            </label>
+                    {/* COVER */}
+                    <div className="relative h-44 sm:h-56 md:h-72 rounded-2xl overflow-hidden">
+                        <img
+                            src={user?.coverUrl || "https://i.pinimg.com/originals/4f/de/0e/4fde0ed05a14d7f6c1a0b19daec5a731.jpg"}
+                            alt="Profile banner"
+                            className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                    </div>
 
-                            <div>
-                                <h1 className="text-lg sm:text-2xl font-bold">{user?.name || "User"}</h1>
-                                <p className="text-gray-400 text-xs sm:text-sm">Member since {joinedYear}</p>
+                    {/* PROFILE INFO */}
+                    <div className="relative -mt-16 px-4 sm:px-6 z-10">
+
+                        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+
+                            {/* LEFT */}
+                            <div className="flex items-end gap-4">
+
+                                {/* AVATAR */}
+                                <label className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-black overflow-hidden cursor-pointer bg-black/40 shadow-xl">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        aria-label="profile photo"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0]
+                                            if (file) uploadAvatar(file)
+                                        }}
+                                    />
+
+                                    <UserAvatar
+                                        name={user?.name}
+                                        avatarUrl={user?.avatarUrl}
+                                        avatarKey={user?.avatarKey}
+                                        alt={user?.name || "User avatar"}
+                                        className="w-full h-full text-xl"
+                                    />
+
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition flex items-center justify-center text-xs">
+                                        Edit
+                                    </div>
+                                </label>
+
+                                {/* NAME */}
+                                <div className="pb-2">
+                                    <h1 className="text-xl sm:text-3xl font-bold text-white">
+                                        {user?.name || "User"}
+                                    </h1>
+                                    <p className="text-gray-400 text-sm">
+                                        Member since {joinedYear}
+                                    </p>
+                                </div>
                             </div>
+
+                            {/* EDIT BUTTON */}
+                            <button
+                                onClick={() => setEditOpen(true)}
+                                className="bg-white text-black px-5 py-2 rounded-full text-sm font-medium shadow hover:scale-[1.03] transition"
+                            >
+                                Edit Profile
+                            </button>
                         </div>
 
-                        <button
-                            onClick={() => setEditOpen(true)}
-                            className="bg-white text-black px-4 py-2 rounded-full text-sm"
-                        >
-                            Edit
-                        </button>
-                    </div>
-
-                    <div className="flex justify-between sm:justify-start sm:gap-6 text-sm text-gray-300">
-                        <Stat label="Uploads" value={stats?.videos || 0} />
-                        <Stat label="Favorites" value={stats?.favorites || 0} />
-                        <Stat label="Playlists" value={stats?.playlists || 0} />
+                        {/* STATS */}
+                        <div className="mt-5 flex gap-8 text-sm">
+                            <Stat label="Uploads" value={stats?.videos || 0} />
+                            <Stat label="Favorites" value={stats?.favorites || 0} />
+                            <Stat label="Playlists" value={stats?.playlists || 0} />
+                        </div>
                     </div>
                 </div>
 
+                {/* MESSAGE */}
                 {message && (
                     <div className="px-4 sm:px-6">
-                        <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-2 text-sm text-gray-100">
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2 text-sm text-emerald-300">
                             {message}
                         </div>
                     </div>
                 )}
 
-                <div className="px-4 sm:px-6 flex flex-wrap gap-2">
-                    <Pill label="Continue Watching" active={activeTab === "history"} onClick={() => setActiveTab("history")} />
-                    <Pill label="Upload" active={activeTab === "uploads"} onClick={() => setActiveTab("uploads")} />
-                    <button
-                        onClick={() => navigate("/organization")}
-                        className="px-3 py-1.5 rounded-full text-xs bg-gray-800 text-gray-300"
-                    >
-                        Organization
-                    </button>
-                    {(authUser?.email === "samakshrastogi885@gmail.com" || authUser?.platformAdmin) && (
+                {/* TABS + ACTIONS */}
+                <div className="px-4 sm:px-6 flex flex-wrap items-center justify-between gap-3">
+
+                    {/* LEFT TABS */}
+                    <div className="flex flex-wrap gap-2 bg-white/5 border border-white/10 rounded-xl p-1 backdrop-blur">
+
+                        <Pill
+                            label="Continue Watching"
+                            active={activeTab === "history"}
+                            onClick={() => setActiveTab("history")}
+                        />
+
+                        <Pill
+                            label="Uploads"
+                            active={activeTab === "uploads"}
+                            onClick={() => setActiveTab("uploads")}
+                        />
+
                         <button
-                            onClick={() => navigate("/admin")}
-                            className="px-3 py-1.5 rounded-full text-xs bg-gray-800 text-gray-300"
+                            onClick={() => navigate("/organization")}
+                            className="px-3 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-white/10 transition"
                         >
-                            Admin Dashboard
+                            Organization
+                        </button>
+
+                        {(authUser?.email === "samakshrastogi885@gmail.com" || authUser?.platformAdmin) && (
+                            <button
+                                onClick={() => navigate("/admin")}
+                                className="px-3 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-white/10 transition"
+                            >
+                                Admin
+                            </button>
+                        )}
+                    </div>
+
+                    {/* RIGHT CTA */}
+                    {activeTab === "uploads" && (
+                        <button
+                            onClick={() => navigate("/upload")}
+                            className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-lg text-sm font-medium shadow"
+                        >
+                            + Upload
                         </button>
                     )}
                 </div>
 
-                <div className="px-4 sm:px-6">
-                    {activeTab === "uploads" && (
-                        <div className="flex justify-between items-center mb-3">
-                            <div className="flex items-center gap-3">
-                                <h2 className="text-lg font-semibold">Upload</h2>
-                                <div className="flex items-center gap-2 bg-white/5 rounded-lg p-1">
-                                    {availableUploadTabs.map((tab) => (
-                                        <button
-                                            key={tab.key}
-                                            onClick={() => setUploadVisibility(tab.key)}
-                                            className={`px-3 py-1.5 rounded-md text-xs ${uploadVisibility === tab.key ? "bg-white text-black" : "text-gray-300"}`}
-                                        >
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={() => navigate("/upload")}
-                                className="bg-purple-600 px-4 py-2 rounded-lg text-sm"
-                            >
-                                + Upload
-                            </button>
+                {/* UPLOAD FILTER */}
+                {activeTab === "uploads" && (
+                    <div className="px-4 sm:px-6">
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
+                            {availableUploadTabs.map((tab) => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setUploadVisibility(tab.key)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs transition ${uploadVisibility === tab.key
+                                        ? "bg-white text-black"
+                                        : "text-gray-300 hover:bg-white/10"
+                                        }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
                         </div>
-                    )}
+                    </div>
+                )}
 
+                {/* CONTENT */}
+                <div className="px-4 sm:px-6">
                     {activeTab === "history" ? (
                         <VideoGrid videos={history} />
                     ) : (
@@ -509,6 +557,7 @@ const ProfilePage = () => {
                             <input
                                 value={videoTitle}
                                 onChange={(e) => setVideoTitle(e.target.value)}
+                                aria-label="video title"
                                 className="w-full bg-gray-800 p-2 rounded text-sm"
                             />
                         </div>
@@ -519,6 +568,7 @@ const ProfilePage = () => {
                                 value={videoDescription}
                                 onChange={(e) => setVideoDescription(e.target.value)}
                                 rows={4}
+                                aria-label="video description"
                                 className="w-full bg-gray-800 p-2 rounded text-sm"
                             />
                         </div>
@@ -532,6 +582,7 @@ const ProfilePage = () => {
                                         type="file"
                                         accept="image/*"
                                         className="hidden"
+                                        aria-label="upload thumbnail"
                                         onChange={(e) => handleUploadVideoThumbnail(e.target.files?.[0])}
                                     />
                                 </label>
@@ -585,21 +636,71 @@ const ProfilePage = () => {
     )
 }
 
-const Stat = ({ label, value }: { label: string, value: number }) => (
-    <div>
-        <p className="font-bold">{value}</p>
-        <p className="text-gray-400 text-xs">{label}</p>
+const Stat = ({
+    label,
+    value,
+    icon
+}: {
+    label: string
+    value: number
+    icon?: React.ReactNode
+}) => (
+    <div className="
+        group relative flex items-center gap-3
+        rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02]
+        px-4 py-3 min-w-[90px]
+        hover:border-white/20 hover:bg-white/10
+        transition-all duration-200
+    ">
+
+        {/* ICON */}
+        {icon && (
+            <div className="text-lg opacity-80 group-hover:opacity-100 transition">
+                {icon}
+            </div>
+        )}
+
+        {/* TEXT */}
+        <div className="flex flex-col">
+            <span className="text-lg sm:text-xl font-semibold text-white leading-tight">
+                {value}
+            </span>
+
+            <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                {label}
+            </span>
+        </div>
+
+        {/* HOVER GLOW */}
+        <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition pointer-events-none bg-white/5" />
     </div>
 )
 
 const VideoGrid = ({ videos }: { videos: Video[] }) => {
-    if (!videos.length) return <p className="text-gray-500">No content</p>
+
+    if (!videos.length) {
+        return (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-gray-400">
+                <p className="text-lg font-medium">No videos yet</p>
+                <p className="text-sm text-gray-500 mt-1">
+                    Your content will appear here once uploaded
+                </p>
+            </div>
+        )
+    }
 
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {videos.map(v => (
-                <VideoCard key={v.publicId} video={v} />
+        <div className="grid gap-5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+
+            {videos.map((v) => (
+                <div
+                    key={v.publicId}
+                    className="transform transition duration-200 hover:scale-[1.04]"
+                >
+                    <VideoCard video={v} />
+                </div>
             ))}
+
         </div>
     )
 }
@@ -611,36 +712,65 @@ const EditableVideoGrid = ({
     videos: Video[]
     onEdit: (video: Video) => void
 }) => {
-    if (!videos.length) return <p className="text-gray-500">No content</p>
+
+    if (!videos.length) {
+        return (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-gray-400">
+                <p className="text-lg font-medium">No videos yet</p>
+                <p className="text-sm text-gray-500 mt-1">
+                    Upload videos to start managing your content
+                </p>
+            </div>
+        )
+    }
 
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {videos.map(v => (
-                <div key={v.publicId} className="relative">
+        <div className="grid gap-5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+
+            {videos.map((v) => (
+                <div
+                    key={v.publicId}
+                    className="group relative transition duration-200 hover:scale-[1.04]"
+                >
                     <VideoCard video={v} />
+
+                    {/* EDIT BUTTON */}
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onEdit(v)
                         }}
-                        className="absolute top-2 right-2 bg-black/70 border border-white/15 rounded-md px-2 py-1 text-[11px]"
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition bg-black/70 backdrop-blur border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white hover:bg-purple-600"
                     >
-                        Edit
+                        ✏ Edit
                     </button>
+
+                    {/* OPTIONAL OVERLAY (HOVER EFFECT) */}
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/10 transition pointer-events-none" />
                 </div>
             ))}
+
         </div>
     )
 }
 
-const Pill = ({ label, active, onClick }: {
+const Pill = ({
+    label,
+    active,
+    onClick
+}: {
     label: string
     active: boolean
     onClick: () => void
 }) => (
     <button
         onClick={onClick}
-        className={`px-3 py-1.5 rounded-full text-xs ${active ? "bg-white text-black" : "bg-gray-800 text-gray-300"}`}
+        className={`
+            px-4 py-1.5 rounded-lg text-xs font-medium transition-all duration-200
+            ${active
+                ? "bg-white text-black shadow-sm"
+                : "text-gray-300 hover:bg-white/10 hover:text-white"}
+        `}
     >
         {label}
     </button>
@@ -663,103 +793,145 @@ const EditModal = ({
     onSave
 }: EditModalProps) => (
     <div
-        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4"
+        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
         onClick={onClose}
     >
         <div
-            className="bg-[#111] p-6 rounded-xl w-full max-w-100 space-y-4"
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-gradient-to-br from-[#111] to-[#0b0b0b] p-6 space-y-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
         >
-            <h2 className="text-xl font-semibold">Edit Profile</h2>
 
-            <div className="space-y-2">
-                <label className="text-sm text-gray-400">Profile Icon</label>
-                <div className="flex items-center gap-3">
-                    <UserAvatar
-                        name={userName || name}
-                        avatarUrl={avatarUrl}
-                        avatarKey={avatarKey}
-                        className="w-14 h-14 text-lg"
-                    />
-                    <label className="px-3 py-2 bg-gray-700 rounded text-sm cursor-pointer">
-                        Change Icon
-                        <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) onAvatarChange(file)
-                            }}
+            {/* HEADER */}
+            <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">
+                    Edit Profile
+                </h2>
+                <button
+                    onClick={onClose}
+                    className="text-gray-400 hover:text-white transition"
+                >
+                    ✕
+                </button>
+            </div>
+
+            {/* AVATAR + COVER */}
+            <div className="grid sm:grid-cols-2 gap-6">
+
+                {/* AVATAR */}
+                <div className="space-y-3">
+                    <p className="text-xs text-gray-400">Profile Photo</p>
+
+                    <div className="flex items-center gap-4">
+                        <UserAvatar
+                            name={userName || name}
+                            avatarUrl={avatarUrl}
+                            avatarKey={avatarKey}
+                            className="w-16 h-16 text-lg border border-white/10"
                         />
-                    </label>
+
+                        <label className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm cursor-pointer transition">
+                            Change
+                            <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                aria-label="profile photo"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) onAvatarChange(file)
+                                }}
+                            />
+                        </label>
+                    </div>
+                </div>
+
+                {/* COVER */}
+                <div className="space-y-3">
+                    <p className="text-xs text-gray-400">Cover Photo</p>
+
+                    <div className="flex items-center gap-4">
+                        <img
+                            src={coverUrl || "https://i.pinimg.com/originals/4f/de/0e/4fde0ed05a14d7f6c1a0b19daec5a731.jpg"}
+                            alt="Cover preview"
+                            className="h-16 w-28 rounded-lg object-cover border border-white/10"
+                        />
+
+                        <label className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm cursor-pointer transition">
+                            Change
+                            <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                aria-label="cover photo"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) onCoverChange(file)
+                                }}
+                            />
+                        </label>
+                    </div>
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <label className="text-sm text-gray-400">Cover Photo (Landscape)</label>
-                <div className="flex items-center gap-3">
-                    <img
-                        src={coverUrl || "https://i.pinimg.com/originals/4f/de/0e/4fde0ed05a14d7f6c1a0b19daec5a731.jpg"}
-                        alt="Cover preview"
-                        className="h-16 w-32 rounded-lg object-cover border border-white/10"
+            {/* FORM */}
+            <div className="space-y-4">
+
+                {/* NAME */}
+                <div className="space-y-1">
+                    <label className="text-xs text-gray-400">Name</label>
+                    <input
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Enter your name"
+                        title="Name"
+                        aria-label="name"
+                        className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
-                    <label className="px-3 py-2 bg-gray-700 rounded text-sm cursor-pointer">
-                        Change Cover
-                        <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) onCoverChange(file)
-                            }}
-                        />
-                    </label>
+                </div>
+
+                {/* CHANNEL */}
+                <div className="space-y-1">
+                    <label className="text-xs text-gray-400">Channel Title</label>
+                    <input
+                        value={channelName}
+                        onChange={(e) => setChannelName(e.target.value)}
+                        placeholder="Enter channel title"
+                        title="Channel Title"
+                        aria-label="channel title"
+                        className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                </div>
+
+                {/* DESCRIPTION */}
+                <div className="space-y-1">
+                    <label className="text-xs text-gray-400">Channel Description</label>
+                    <textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Tell something about your channel"
+                        rows={3}
+                        className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
                 </div>
             </div>
 
-            <div className="space-y-1">
-                <label className="text-sm text-gray-400">Name</label>
-                <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your name"
-                    className="w-full bg-gray-800 p-2 rounded text-sm"
-                />
-            </div>
-
-            <div className="space-y-1">
-                <label className="text-sm text-gray-400">Channel Title</label>
-                <input
-                    value={channelName}
-                    onChange={(e) => setChannelName(e.target.value)}
-                    placeholder="Enter channel title"
-                    className="w-full bg-gray-800 p-2 rounded text-sm"
-                />
-            </div>
-
-            <div className="space-y-1">
-                <label className="text-sm text-gray-400">Channel Description</label>
-                <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Tell something about your channel"
-                    className="w-full bg-gray-800 p-2 rounded text-sm"
-                />
-            </div>
-
+            {/* ACTIONS */}
             <div className="flex justify-end gap-3 pt-2">
-                <button onClick={onClose} className="px-4 py-2 bg-gray-700 rounded text-sm">
+                <button
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm transition"
+                >
                     Cancel
                 </button>
 
-                <button onClick={onSave} className="px-4 py-2 bg-purple-600 rounded text-sm">
-                    Save
+                <button
+                    onClick={onSave}
+                    className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm font-medium shadow"
+                >
+                    Save Changes
                 </button>
             </div>
         </div>
     </div>
 )
-
 export default ProfilePage

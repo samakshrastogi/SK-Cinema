@@ -21,7 +21,7 @@ const UserAvatar = ({
     const avatarSrc = getAvatarSrc({ avatarUrl, avatarKey })
 
     useEffect(() => {
-        setAvatarFailed(false)
+        Promise.resolve().then(() => setAvatarFailed(false))
     }, [avatarUrl, avatarKey])
 
     return (

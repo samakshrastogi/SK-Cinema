@@ -1,12 +1,40 @@
+
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import AppLayout from "@/layouts/AppLayout"
 import { api } from "@/api/axios"
 
+// Types for organization membership and API errors
+interface Organization {
+    id: number;
+    name: string;
+    // Add more fields as needed
+}
+
+type MembershipStatus = "APPROVED" | "PENDING";
+type MembershipRole = "ADMIN" | "MEMBER";
+
+interface Membership {
+    id: number;
+    organization: Organization;
+    role: MembershipRole;
+    status: MembershipStatus;
+}
+
+interface ApiError {
+    response?: {
+        data?: {
+            message?: string;
+        };
+        status?: number;
+    };
+    message?: string;
+}
+
 const OrganizationPage = () => {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
-    const [memberships, setMemberships] = useState<any[]>([])
+    const [memberships, setMemberships] = useState<Membership[]>([])
     const [activeOrganizationId, setActiveOrganizationId] = useState<number | null>(null)
     const [name, setName] = useState("")
     const [slug, setSlug] = useState("")
@@ -16,7 +44,6 @@ const OrganizationPage = () => {
     const [linkInfo, setLinkInfo] = useState<{ name: string; linkType: "PUBLIC" | "PRIVATE" } | null>(null)
     const [linkJoining, setLinkJoining] = useState(false)
     const [plan, setPlan] = useState("TRIAL_FREE")
-
     const handledInviteToken = useRef<string | null>(null)
 
     const rawOrgToken = searchParams.get("orgToken") || searchParams.get("org")
@@ -38,7 +65,7 @@ const OrganizationPage = () => {
     )
 
     useEffect(() => {
-        load().catch((err) => {
+        load().catch((err: ApiError) => {
             console.error(err)
             setMessage("Failed to load organization data.")
         })
@@ -57,7 +84,7 @@ const OrganizationPage = () => {
                     linkType: res.data?.data?.linkType === "PRIVATE" ? "PRIVATE" : "PUBLIC"
                 })
             })
-            .catch((err) => {
+            .catch((err: ApiError) => {
                 setLinkInfo(null)
                 setMessage(err?.response?.data?.message || "Invalid organization link.")
             })
@@ -73,7 +100,7 @@ const OrganizationPage = () => {
                 setMessage(res.data?.message || "Joined organization via invite.")
                 load().catch(() => undefined)
             })
-            .catch((err) => {
+            .catch((err: ApiError) => {
                 setMessage(err?.response?.data?.message || "Failed to join via invite link.")
             })
     }, [inviteToken])
@@ -85,8 +112,9 @@ const OrganizationPage = () => {
             const res = await api.post("/organization/join-by-link", { token: orgToken })
             setMessage(res.data?.message || "Request sent. Please wait for admin approval.")
             await load()
-        } catch (err: any) {
-            setMessage(err?.response?.data?.message || "Failed to join organization via shared link.")
+        } catch (err) {
+            const apiErr = err as ApiError
+            setMessage(apiErr?.response?.data?.message || "Failed to join organization via shared link.")
         } finally {
             setLinkJoining(false)
         }
@@ -115,12 +143,14 @@ const OrganizationPage = () => {
                 res = await api.post("/organization/join-request", {
                     organization: joinInput.trim()
                 })
-            } catch (inner: any) {
-                if (inner?.response?.status === 404) {
+            } catch (inner) {
+                const innerErr = inner as ApiError
+                if (innerErr?.response?.status === 404) {
                     try {
                         await api.get("/organization/ping")
-                    } catch (pingErr: any) {
-                        if (pingErr?.response?.status === 404) {
+                    } catch (pingErr) {
+                        const pingError = pingErr as ApiError
+                        if (pingError?.response?.status === 404) {
                             throw new Error("Organization routes not loaded. Restart backend server.")
                         }
                     }
@@ -134,12 +164,13 @@ const OrganizationPage = () => {
             setJoinInput("")
             setMessage(res.data?.message || "Request sent. Please wait for admin approval.")
             await load()
-        } catch (err: any) {
+        } catch (err) {
+            const apiErr = err as ApiError
             const fallback =
-                err?.response?.status === 404
+                apiErr?.response?.status === 404
                     ? "Organization join endpoint not found. Please restart the backend server."
                     : "Failed to send join request."
-            setMessage(err?.message || err?.response?.data?.message || fallback)
+            setMessage(apiErr?.message || apiErr?.response?.data?.message || fallback)
         }
     }
 
@@ -152,149 +183,315 @@ const OrganizationPage = () => {
     return (
         <AppLayout>
             <div className="mx-auto max-w-6xl space-y-6 px-1 sm:px-2">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
-                    <h1 className="text-xl font-bold sm:text-2xl">Organization</h1>
-                    <p className="text-sm text-gray-400">
-                        Create, join, and switch organization mode.
-                    </p>
-                    {message && <p className="mt-2 text-sm text-emerald-300">{message}</p>}
+                <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-5 shadow-lg space-y-4">
+
+                    {/* TITLE */}
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl text-white">
+                            Organization
+                        </h1>
+                        <p className="text-sm text-gray-400 mt-1">
+                            Create, join, and manage your organization access.
+                        </p>
+                    </div>
+
+                    {/* MESSAGE */}
+                    {message && (
+                        <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-sm text-emerald-300">
+                            {message}
+                        </div>
+                    )}
+
                 </div>
 
                 {orgToken && linkInfo && (
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
-                        <h2 className="text-base font-semibold sm:text-lg">Join via Organization Link</h2>
-                        <p className="mt-1 text-sm text-gray-300">
-                            Organization: <span className="font-semibold text-white">{linkInfo.name}</span>
-                        </p>
-                        <p className="mt-1 text-xs text-gray-400">
-                            Link type: {linkInfo.linkType === "PUBLIC" ? "Public (instant join)" : "Private (approval required)"}
-                        </p>
+                    <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 backdrop-blur-xl p-5 space-y-4 shadow-md">
+
+                        {/* HEADER */}
+                        <div>
+                            <h2 className="text-lg font-semibold text-white">
+                                Join Organization
+                            </h2>
+                            <p className="text-xs text-gray-400 mt-1">
+                                You’ve been invited via a shared link
+                            </p>
+                        </div>
+
+                        {/* ORG INFO */}
+                        <div className="space-y-1">
+                            <p className="text-sm text-gray-300">
+                                Organization:
+                                <span className="ml-1 font-semibold text-white">
+                                    {linkInfo.name}
+                                </span>
+                            </p>
+
+                            <p className="text-xs">
+                                {linkInfo.linkType === "PUBLIC" ? (
+                                    <span className="text-emerald-400">
+                                        Public Access • Instant Join
+                                    </span>
+                                ) : (
+                                    <span className="text-amber-400">
+                                        Private Access • Requires Approval
+                                    </span>
+                                )}
+                            </p>
+                        </div>
+
+                        {/* ACTION */}
                         <button
                             onClick={handleJoinByLink}
                             disabled={linkJoining}
-                            className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm disabled:opacity-60"
+                            className="w-full sm:w-fit rounded-lg bg-blue-600 hover:bg-blue-500 transition px-4 py-2 text-sm font-medium shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            {linkJoining ? "Sending..." : "Request Join"}
+                            {linkJoining ? "Sending Request..." : "Join Organization"}
                         </button>
+
                     </div>
                 )}
 
                 <div className="grid gap-6 lg:grid-cols-2">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-                        <h2 className="font-semibold">Create Organization</h2>
-                        <input
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Organization name"
-                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                        />
-                        <input
-                            value={slug}
-                            onChange={(e) => setSlug(e.target.value)}
-                            placeholder="Slug (optional)"
-                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                        />
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Description (optional)"
-                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                        />
-                        <select
-                            value={plan}
-                            onChange={(e) => setPlan(e.target.value)}
-                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+
+                    {/* CREATE ORGANIZATION */}
+                    <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-5 space-y-4 shadow-md">
+
+                        <div>
+                            <h2 className="text-lg font-semibold text-white">Create Organization</h2>
+                            <p className="text-xs text-gray-400 mt-1">
+                                Set up a new organization to manage users and content.
+                            </p>
+                        </div>
+
+                        {/* INPUTS */}
+                        <div className="space-y-3">
+
+                            <input
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="Organization name"
+                                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                            />
+
+                            <input
+                                value={slug}
+                                onChange={(e) => setSlug(e.target.value)}
+                                placeholder="Slug (optional)"
+                                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                            />
+
+                            <textarea
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="Description (optional)"
+                                rows={3}
+                                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                            />
+
+                            <select
+                                value={plan}
+                                aria-label="select subscription plan"
+                                onChange={(e) => setPlan(e.target.value)}
+                                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                            >
+                                <option value="TRIAL_FREE">3 month free trial</option>
+                                <option value="SIX_MONTH">6 month subscription (Rs 18000)</option>
+                                <option value="YEARLY_INITIAL">Yearly initial (Rs 10000 one-time)</option>
+                                <option value="YEARLY_RENEWAL">Yearly renewal (Rs 24000 annually)</option>
+                            </select>
+
+                        </div>
+
+                        {/* CTA */}
+                        <button
+                            onClick={createOrganization}
+                            className="w-full rounded-lg bg-purple-600 hover:bg-purple-500 transition px-4 py-2 text-sm font-medium shadow-md active:scale-95"
                         >
-                            <option value="TRIAL_FREE">3 month free trial</option>
-                            <option value="SIX_MONTH">6 month subscription (Rs 18000)</option>
-                            <option value="YEARLY_INITIAL">Yearly initial (Rs 10000 one-time initial users)</option>
-                            <option value="YEARLY_RENEWAL">Yearly renewal (Rs 24000 annually)</option>
-                        </select>
-                        <button onClick={createOrganization} className="rounded-lg bg-purple-600 px-4 py-2 text-sm">
-                            Create
+                            Create Organization
                         </button>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-                        <h2 className="font-semibold">Join Organization</h2>
-                        <input
-                            value={joinInput}
-                            onChange={(e) => setJoinInput(e.target.value)}
-                            placeholder="Organization slug or id"
-                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                        />
-                        <button onClick={requestJoin} className="rounded-lg bg-blue-600 px-4 py-2 text-sm">
+
+                    {/* JOIN ORGANIZATION */}
+                    <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-blue-500/5 to-blue-500/10 backdrop-blur-xl p-5 space-y-4 shadow-md">
+
+                        <div>
+                            <h2 className="text-lg font-semibold text-white">Join Organization</h2>
+                            <p className="text-xs text-gray-400 mt-1">
+                                Enter an organization slug or ID to request access.
+                            </p>
+                        </div>
+
+                        {/* INPUT */}
+                        <div className="space-y-3">
+                            <input
+                                value={joinInput}
+                                onChange={(e) => setJoinInput(e.target.value)}
+                                placeholder="Organization slug or ID"
+                                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                            />
+                        </div>
+
+                        {/* CTA */}
+                        <button
+                            onClick={requestJoin}
+                            className="w-full rounded-lg bg-blue-600 hover:bg-blue-500 transition px-4 py-2 text-sm font-medium shadow-md active:scale-95"
+                        >
                             Request Join
                         </button>
+
+                        {/* INFO */}
                         <p className="text-xs text-gray-400">
-                            Request sent users will remain pending until approved (except public org link access).
+                            Requests remain pending until approved (except public organization links).
                         </p>
                     </div>
+
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                        <h2 className="font-semibold">My Memberships</h2>
+                <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-5 space-y-4 shadow-lg">
+
+                    {/* HEADER */}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold text-white">My Organizations</h2>
+                            <p className="text-xs text-gray-400">
+                                Manage your memberships and switch organization mode.
+                            </p>
+                        </div>
+
                         <button
                             onClick={() => switchMode(null)}
-                            className="rounded bg-gray-700 px-3 py-1 text-xs"
+                            className="rounded-lg bg-gray-700 hover:bg-gray-600 transition px-3 py-1.5 text-xs font-medium"
                         >
                             Disable Org Mode
                         </button>
                     </div>
-                    <div className="space-y-2">
-                        {memberships.map((m) => (
-                            <div key={m.id} className="flex flex-col gap-3 rounded-lg bg-black/25 p-3 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                    <p className="text-sm font-medium">
-                                        {m.organization?.name} ({m.role})
-                                    </p>
-                                    <p className="text-xs text-gray-400">Status: {m.status}</p>
-                                </div>
-                                {m.status === "APPROVED" && (
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => switchMode(m.organization.id)}
-                                            className={`rounded px-3 py-1 text-xs ${
-                                                activeOrganizationId === m.organization.id
-                                                    ? "bg-emerald-600"
-                                                    : "bg-indigo-600"
-                                            }`}
-                                        >
-                                            {activeOrganizationId === m.organization.id ? "Active" : "Enable Mode"}
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                await switchMode(m.organization.id)
-                                                navigate("/home")
-                                            }}
-                                            className="rounded bg-blue-600 px-3 py-1 text-xs"
-                                        >
-                                            Visit
-                                        </button>
+
+                    {/* LIST */}
+                    <div className="space-y-3">
+
+                        {memberships.map((m) => {
+                            const isActive = activeOrganizationId === m.organization?.id
+
+                            return (
+                                <div
+                                    key={m.id}
+                                    className={`flex flex-col gap-3 rounded-xl p-4 transition sm:flex-row sm:items-center sm:justify-between
+                    ${isActive
+                                            ? "bg-emerald-600/10 border border-emerald-500/20"
+                                            : "bg-black/30 border border-white/5 hover:bg-black/40"
+                                        }`}
+                                >
+
+                                    {/* LEFT INFO */}
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium text-white">
+                                            {m.organization?.name}
+                                        </p>
+
+                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+
+                                            {/* ROLE */}
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium
+                                ${m.role === "ADMIN"
+                                                    ? "bg-purple-600/20 text-purple-300"
+                                                    : "bg-gray-600/20 text-gray-300"
+                                                }`}>
+                                                {m.role}
+                                            </span>
+
+                                            {/* STATUS */}
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium
+                                ${m.status === "APPROVED"
+                                                    ? "bg-emerald-600/20 text-emerald-300"
+                                                    : "bg-amber-600/20 text-amber-300"
+                                                }`}>
+                                                {m.status}
+                                            </span>
+
+                                            {/* ACTIVE */}
+                                            {isActive && (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-600 text-white">
+                                                    ACTIVE
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
-                                )}
-                                {m.status === "PENDING" && (
-                                    <span className="w-fit rounded bg-amber-600/70 px-3 py-1 text-xs">
-                                        Waiting Approval
-                                    </span>
-                                )}
-                            </div>
-                        ))}
+
+                                    {/* ACTIONS */}
+                                    {m.status === "APPROVED" && (
+                                        <div className="flex flex-wrap items-center gap-2">
+
+                                            <button
+                                                onClick={() => switchMode(m.organization.id)}
+                                                className={`rounded-lg px-3 py-1 text-xs font-medium transition
+                                    ${isActive
+                                                        ? "bg-emerald-600"
+                                                        : "bg-indigo-600 hover:bg-indigo-500"
+                                                    }`}
+                                            >
+                                                {isActive ? "Active" : "Enable"}
+                                            </button>
+
+                                            <button
+                                                onClick={async () => {
+                                                    await switchMode(m.organization.id)
+                                                    navigate("/home")
+                                                }}
+                                                className="rounded-lg bg-blue-600 hover:bg-blue-500 transition px-3 py-1 text-xs font-medium"
+                                            >
+                                                Visit
+                                            </button>
+
+                                        </div>
+                                    )}
+
+                                    {/* PENDING */}
+                                    {m.status === "PENDING" && (
+                                        <span className="w-fit rounded-full bg-amber-600/20 text-amber-300 px-3 py-1 text-xs font-medium">
+                                            Waiting for Approval
+                                        </span>
+                                    )}
+
+                                </div>
+                            )
+                        })}
+
                         {memberships.length === 0 && (
-                            <p className="text-sm text-gray-400">No organization memberships yet.</p>
+                            <div className="text-center py-6 text-sm text-gray-400">
+                                No organization memberships yet.
+                            </div>
                         )}
+
                     </div>
+
                 </div>
 
                 {approvedMemberships.some((m) => m.role === "ADMIN") && (
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <button
-                            onClick={() => navigate("/organization/dashboard")}
-                            className="rounded-lg bg-amber-600 px-4 py-2 text-sm"
-                        >
-                            Open Admin Dashboard
-                        </button>
+                    <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-amber-500/5 backdrop-blur-xl p-5 shadow-md">
+
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+                            {/* TEXT */}
+                            <div>
+                                <h2 className="text-lg font-semibold text-white">
+                                    Admin Dashboard Access
+                                </h2>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    You have admin privileges. Manage members, content, and organization settings.
+                                </p>
+                            </div>
+
+                            {/* CTA BUTTON */}
+                            <button
+                                onClick={() => navigate("/organization/dashboard")}
+                                className="rounded-lg bg-amber-600 hover:bg-amber-500 transition px-4 py-2 text-sm font-medium shadow-md active:scale-95"
+                            >
+                                Open Dashboard
+                            </button>
+
+                        </div>
+
                     </div>
                 )}
             </div>

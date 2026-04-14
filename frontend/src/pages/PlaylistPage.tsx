@@ -92,15 +92,16 @@ const PlaylistPage = () => {
                                             onClick={() => navigate(`/video/${id}`)}
                                             className="w-full text-left flex items-center gap-3 bg-black/25 hover:bg-black/35 transition rounded-xl p-2.5"
                                         >
-                                            <img
-                                                src={thumbnail}
-                                                alt={title}
-                                                className="w-[152px] h-[88px] rounded-lg object-cover shrink-0 border border-white/10"
-                                                onError={(e) => {
-                                                    ;(e.currentTarget as HTMLImageElement).src =
-                                                        "/placeholder-thumbnail.png"
-                                                }}
-                                            />
+                                            <div style={{ width: 152, height: 88 }} className="rounded-lg overflow-hidden shrink-0 border border-white/10 bg-black/20 flex items-center justify-center">
+                                                <img
+                                                    src={thumbnail}
+                                                    alt={title}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        ;(e.currentTarget as HTMLImageElement).src = "/placeholder-thumbnail.png"
+                                                    }}
+                                                />
+                                            </div>
 
                                             <div className="min-w-0">
                                                 <p className="text-sm md:text-base font-medium leading-5 line-clamp-2">

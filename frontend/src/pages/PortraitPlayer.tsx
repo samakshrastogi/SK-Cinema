@@ -391,61 +391,90 @@ const PortraitPlayer = () => {
 
             <main className="pt-[80px] pb-24 px-3">
                 <div className="max-w-[1380px] mx-auto grid lg:grid-cols-[minmax(260px,360px)_minmax(0,1fr)_120px] gap-6 items-start">
-                    <section className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4 h-fit">
-                        <h1 className="text-xl font-semibold leading-tight">{title}</h1>
+                    <section className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 space-y-5 h-fit shadow-lg">
 
-                        <p className="text-sm text-gray-300 leading-6 whitespace-pre-wrap">
-                            {description}
-                        </p>
+                        {/* TITLE */}
+                        <div className="space-y-2">
+                            <h1 className="text-xl sm:text-2xl font-bold leading-tight text-white">
+                                {title}
+                            </h1>
 
-                        <div className="pt-2 flex items-center gap-3">
-                            <UserAvatar
-                                name={activeVideo.uploaderName || activeVideo.channel?.name}
-                                avatarUrl={activeVideo.uploaderAvatarUrl}
-                                avatarKey={activeVideo.uploaderAvatarKey}
-                                alt={activeVideo.channel?.name || "Uploader"}
-                            />
+                            <p className="text-xs text-gray-400">
+                                {timeAgo(activeVideo.createdAt)} • {views.toLocaleString()} views
+                            </p>
+                        </div>
 
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <p className="text-sm font-semibold">
+                        {/* CREATOR */}
+                        <div className="flex items-center justify-between gap-3">
+
+                            <div className="flex items-center gap-3">
+                                <UserAvatar
+                                    name={activeVideo.uploaderName || activeVideo.channel?.name}
+                                    avatarUrl={activeVideo.uploaderAvatarUrl}
+                                    avatarKey={activeVideo.uploaderAvatarKey}
+                                    alt={activeVideo.channel?.name || "Uploader"}
+                                />
+
+                                <div>
+                                    <p className="text-sm font-semibold text-white">
                                         {activeVideo.channel?.name || "Unknown channel"}
                                     </p>
-                                    <button
-                                        onClick={toggleSubscribe}
-                                        className={`px-3 py-1 rounded-full text-xs font-medium border transition ${
-                                            subscribed
-                                                ? "bg-white text-black border-white"
-                                                : "bg-purple-600 border-purple-500 text-white"
-                                        }`}
-                                    >
-                                        {subscribed ? "Subscribed" : "Subscribe"} {subscribers > 0 ? subscribers : ""}
-                                    </button>
+                                    <p className="text-xs text-gray-400">
+                                        {subscribers > 0 ? `${subscribers} subscribers` : "New creator"}
+                                    </p>
                                 </div>
-                                <p className="text-xs text-gray-400">
-                                    {timeAgo(activeVideo.createdAt)} • {views.toLocaleString()} views
-                                </p>
                             </div>
-                        </div>
 
-                        <div className="flex items-center gap-2 pt-1">
+                            {/* SUBSCRIBE BUTTON */}
                             <button
-                                onClick={() => setShowSharePopup(true)}
-                                className="px-3 py-2 rounded-lg text-sm border bg-white/10 border-white/10 hover:bg-white/15 transition"
+                                onClick={toggleSubscribe}
+                                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition shadow-sm ${subscribed
+                                    ? "bg-white text-black"
+                                    : "bg-purple-600 hover:bg-purple-500 text-white"
+                                    }`}
                             >
-                                ↗ Share {shares > 0 ? shares : ""}
+                                {subscribed ? "Subscribed" : "Subscribe"}
                             </button>
                         </div>
+
+                        {/* DESCRIPTION (COLLAPSIBLE READY) */}
+                        <div className="text-sm text-gray-300 leading-6 max-h-[120px] overflow-hidden relative group">
+
+                            <p className="whitespace-pre-wrap">
+                                {description}
+                            </p>
+
+                            {/* FADE EFFECT */}
+                            <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black/70 to-transparent pointer-events-none group-hover:opacity-0 transition" />
+                        </div>
+
+                        {/* ACTIONS */}
+                        <div className="flex items-center gap-3 pt-2">
+
+                            <button
+                                onClick={() => setShowSharePopup(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm border bg-white/10 border-white/10 hover:bg-white/20 transition"
+                            >
+                                ↗ Share
+                                {shares > 0 && <span className="text-xs text-gray-300">{shares}</span>}
+                            </button>
+
+                        </div>
+
                     </section>
 
-                    <section className="space-y-5">
+                    <section className="space-y-6">
+
+                        {/* VIDEO PLAYER */}
                         <div
-                            className="w-full max-w-[460px] mx-auto"
+                            className="w-full max-w-[480px] mx-auto"
                             onWheel={onWheel}
                             onTouchStart={onTouchStart}
                             onTouchEnd={onTouchEnd}
                         >
-                            <div className="rounded-3xl overflow-hidden border border-white/15 shadow-2xl bg-black">
+                            <div className="relative rounded-[28px] overflow-hidden border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.6)] bg-black">
+
+                                {/* VIDEO */}
                                 <video
                                     key={activeVideo.publicId}
                                     ref={videoRef}
@@ -455,21 +484,33 @@ const PortraitPlayer = () => {
                                     playsInline
                                     controlsList="nodownload"
                                     onEnded={goNext}
-                                    className="w-full h-[78vh] object-contain bg-black"
+                                    className="w-full h-[80vh] object-contain bg-black"
                                 />
+
+                                {/* GRADIENT OVERLAY (TOP + BOTTOM FADE) */}
+                                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/40" />
+
                             </div>
                         </div>
 
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 max-w-[920px]">
-                            <h2 className="text-lg font-semibold mb-4">Comments</h2>
 
+                        {/* COMMENTS SECTION */}
+                        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 max-w-[920px] shadow-lg">
+
+                            {/* HEADER */}
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-semibold text-white">Comments</h2>
+                                <span className="text-xs text-gray-400">{comments.length} total</span>
+                            </div>
+
+                            {/* COMMENT LIST */}
                             <div
                                 ref={commentsRef}
-                                className="flex flex-col gap-3 max-h-[320px] overflow-y-auto pr-1"
+                                className="flex flex-col gap-3 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10"
                             >
                                 {comments.map((c) => {
                                     const isMine = c.username === user?.username
-                                    const commenterLabel = c.channelName || c.username || "Unknown channel"
+                                    const commenterLabel = c.channelName || c.username || "Unknown"
 
                                     return (
                                         <div
@@ -477,23 +518,36 @@ const PortraitPlayer = () => {
                                             className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                                         >
                                             <div
-                                                className={`max-w-[82%] px-3 py-2.5 rounded-xl text-sm shadow-sm ${
-                                                    isMine ? "bg-purple-600 text-white" : "bg-black/40"
-                                                }`}
+                                                className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-md transition ${isMine
+                                                    ? "bg-purple-600 text-white"
+                                                    : "bg-black/40 border border-white/10"
+                                                    }`}
                                             >
-                                                <div className="text-xs text-gray-300 mb-1 flex gap-2 items-center">
+
+                                                {/* META */}
+                                                <div className="text-[11px] text-gray-300 mb-1 flex gap-2 items-center">
                                                     <span className="font-medium">{commenterLabel}</span>
                                                     <span>•</span>
                                                     <span>{timeAgo(c.createdAt)}</span>
                                                 </div>
-                                                {c.commentText}
+
+                                                {/* TEXT */}
+                                                <p className="leading-relaxed">{c.commentText}</p>
                                             </div>
                                         </div>
                                     )
                                 })}
+
+                                {comments.length === 0 && (
+                                    <p className="text-sm text-gray-400 text-center py-6">
+                                        No comments yet. Start the conversation 👇
+                                    </p>
+                                )}
                             </div>
 
-                            <div className="flex gap-2 mt-4">
+                            {/* INPUT */}
+                            <div className="flex gap-2 mt-4 items-center">
+
                                 <input
                                     value={commentInput}
                                     onChange={(e) => setCommentInput(e.target.value)}
@@ -504,66 +558,84 @@ const PortraitPlayer = () => {
                                         }
                                     }}
                                     placeholder="Write a comment..."
-                                    className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-purple-500"
+                                    className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
                                 />
 
                                 <button
                                     onClick={submitComment}
-                                    className="bg-purple-600 hover:bg-purple-700 px-4 rounded-xl text-sm"
+                                    className="bg-purple-600 hover:bg-purple-500 transition px-5 py-2.5 rounded-xl text-sm font-medium shadow-md active:scale-95"
                                 >
-                                    Comment
+                                    Send
                                 </button>
+
                             </div>
                         </div>
+
                     </section>
 
-                    <aside className="bg-white/5 border border-white/10 rounded-2xl p-3 flex lg:flex-col gap-2 h-fit lg:sticky lg:top-24">
-                        <button
-                            onClick={likeVideo}
-                            className={`px-4 py-3 rounded-xl text-sm border transition ${
-                                liked
-                                    ? "bg-green-600 border-green-500 text-white"
-                                    : "bg-white/10 border-white/10 hover:bg-white/15"
-                            }`}
-                        >
-                            👍 {likes}
-                        </button>
+                    <aside className="flex lg:flex-col items-center gap-4 lg:sticky lg:top-28">
 
-                        <button
-                            onClick={dislikeVideo}
-                            className={`px-4 py-3 rounded-xl text-sm border transition ${
-                                disliked
-                                    ? "bg-red-600 border-red-500 text-white"
-                                    : "bg-white/10 border-white/10 hover:bg-white/15"
-                            }`}
-                        >
-                            👎 {dislikes}
-                        </button>
+                        {/* ACTION STACK */}
+                        <div className="flex lg:flex-col gap-3 bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-2 shadow-lg">
 
-                        <button
-                            onClick={() => {
-                                commentsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-                            }}
-                            className="px-4 py-3 rounded-xl text-sm border bg-white/10 border-white/10 hover:bg-white/15 transition"
-                        >
-                            💬 Comment
-                        </button>
+                            {/* LIKE */}
+                            <button
+                                onClick={likeVideo}
+                                className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl transition ${liked
+                                    ? "bg-green-600 text-white"
+                                    : "bg-white/10 hover:bg-white/20"
+                                    }`}
+                            >
+                                <span className="text-lg">👍</span>
+                                <span className="text-[10px]">{likes}</span>
+                            </button>
 
-                        <button
-                            onClick={() => setShowPlaylist(!showPlaylist)}
-                            className="px-4 py-3 rounded-xl text-sm bg-purple-600 hover:bg-purple-700 transition"
-                        >
-                            ➕ Playlist
-                        </button>
+                            {/* DISLIKE */}
+                            <button
+                                onClick={dislikeVideo}
+                                className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl transition ${disliked
+                                    ? "bg-red-600 text-white"
+                                    : "bg-white/10 hover:bg-white/20"
+                                    }`}
+                            >
+                                <span className="text-lg">👎</span>
+                                <span className="text-[10px]">{dislikes}</span>
+                            </button>
 
+                            {/* COMMENT */}
+                            <button
+                                onClick={() => {
+                                    commentsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+                                }}
+                                className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-white/10 hover:bg-white/20 transition"
+                            >
+                                <span className="text-lg">💬</span>
+                                <span className="text-[10px]">Comment</span>
+                            </button>
+
+                            {/* PLAYLIST */}
+                            <button
+                                onClick={() => setShowPlaylist(!showPlaylist)}
+                                className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-purple-600 hover:bg-purple-500 transition text-white shadow-md"
+                            >
+                                <span className="text-lg">➕</span>
+                                <span className="text-[10px]">Save</span>
+                            </button>
+
+                        </div>
+
+                        {/* PLAYLIST POPUP */}
                         {showPlaylist && (
-                            <div className="rounded-xl border border-white/10 bg-black/35 p-3 space-y-3 min-w-[240px]">
+                            <div className="mt-2 lg:absolute lg:right-0 lg:top-[240px] rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-4 space-y-3 min-w-[260px] shadow-xl">
+
+                                {/* HEADER */}
                                 <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium">Playlists</p>
+                                    <p className="text-sm font-semibold text-white">Playlists</p>
                                     <span className="text-xs text-gray-400">{playlists.length}</span>
                                 </div>
 
-                                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                                {/* LIST */}
+                                <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
                                     {playlists.length === 0 && (
                                         <p className="text-xs text-gray-400">
                                             No playlist yet.
@@ -574,13 +646,14 @@ const PortraitPlayer = () => {
                                         <button
                                             key={p.id}
                                             onClick={() => addVideoToPlaylist(p.id)}
-                                            className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition text-sm"
+                                            className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/15 transition text-sm"
                                         >
                                             {p.name}
                                         </button>
                                     ))}
                                 </div>
 
+                                {/* CREATE */}
                                 <div className="flex gap-2 pt-1">
                                     <input
                                         value={newPlaylistName}
@@ -597,11 +670,12 @@ const PortraitPlayer = () => {
 
                                     <button
                                         onClick={createPlaylist}
-                                        className="bg-purple-600 hover:bg-purple-700 px-4 rounded-lg text-sm"
+                                        className="bg-purple-600 hover:bg-purple-500 px-4 rounded-lg text-sm"
                                     >
                                         Create
                                     </button>
                                 </div>
+
                             </div>
                         )}
                     </aside>
