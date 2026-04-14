@@ -1,4 +1,4 @@
-import { Home, Compass, Film, Heart, User } from "lucide-react"
+import { Home, Search, Film, Heart, User, Smartphone } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
 
 const MobileBottomNav = () => {
@@ -7,7 +7,8 @@ const MobileBottomNav = () => {
 
     const items = [
         { icon: Home, path: "/home" },
-        { icon: Compass, path: "/explore" },
+        { icon: Search, path: "/search" },
+        { icon: Smartphone, path: "/portrait" },
         { icon: Film, path: "/playlists" },
         { icon: Heart, path: "/favorites" },
         { icon: User, path: "/profile" },

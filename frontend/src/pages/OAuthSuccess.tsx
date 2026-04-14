@@ -16,6 +16,7 @@ const OAuthSuccess = () => {
         const handleOAuth = async () => {
 
             const token = searchParams.get("token")
+            const loginIdParam = searchParams.get("loginId")
 
             if (!token) {
                 navigate("/login", { replace: true })
@@ -32,7 +33,11 @@ const OAuthSuccess = () => {
 
                 const user = res.data.data.user
 
-                setAuthFromOAuth(token, user)
+                setAuthFromOAuth(
+                    token,
+                    user,
+                    loginIdParam ? Number(loginIdParam) : null
+                )
 
                 navigate("/home", { replace: true })
 

@@ -3,7 +3,9 @@ import {
     createContext,
     useContext,
     useState,
+    useEffect,
 } from "react"
+import { setAuthToken } from "@/api/axios"
 
 interface User {
     id: number
@@ -13,14 +15,16 @@ interface User {
     avatarUrl?: string
     avatarKey?: string
     createdAt?: string
+    platformAdmin?: boolean
 }
 
 interface AuthContextType {
     token: string | null
     user: User | null
-    login: (token: string, user: User, remember?: boolean) => void
+    loginId: number | null
+    login: (token: string, user: User, remember?: boolean, loginId?: number | null) => void
     logout: () => void
-    setAuthFromOAuth: (token: string, user: User) => void
+    setAuthFromOAuth: (token: string, user: User, loginId?: number | null) => void
     updateUser: (user: User) => void
     isAuthenticated: boolean
 }
@@ -65,19 +69,63 @@ export const AuthProvider = ({
 
     const [token, setToken] = useState<string | null>(getStoredToken())
     const [user, setUser] = useState<User | null>(getStoredUser())
+    const [loginId, setLoginId] = useState<number | null>(() => {
+        const stored = localStorage.getItem("loginId") || sessionStorage.getItem("loginId")
+        return stored ? Number(stored) : null
+    })
+
+    useEffect(() => {
+        setAuthToken(token)
+    }, [token])
+
+    useEffect(() => {
+        if (token && !localStorage.getItem("sessionStart") && !sessionStorage.getItem("sessionStart")) {
+            const storage = localStorage.getItem("token") ? localStorage : sessionStorage
+            storage.setItem("sessionStart", String(Date.now()))
+        }
+    }, [token])
+
+    useEffect(() => {
+        const handleUnload = () => {
+            const storedToken = localStorage.getItem("token") || sessionStorage.getItem("token")
+            const storedLoginId = localStorage.getItem("loginId") || sessionStorage.getItem("loginId")
+            const storedStart = localStorage.getItem("sessionStart") || sessionStorage.getItem("sessionStart")
+
+            if (!storedToken || !storedLoginId || !storedStart) return
+
+            const durationSec = Math.max(0, Math.floor((Date.now() - Number(storedStart)) / 1000))
+            const payload = JSON.stringify({
+                token: storedToken,
+                loginId: Number(storedLoginId),
+                durationSec
+            })
+
+            const blob = new Blob([payload], { type: "application/json" })
+            navigator.sendBeacon(`${import.meta.env.VITE_API_URL}/auth/session-end`, blob)
+        }
+
+        window.addEventListener("beforeunload", handleUnload)
+        return () => window.removeEventListener("beforeunload", handleUnload)
+    }, [])
 
     /* ---------------- LOGIN ---------------- */
 
     const login = (
         token: string,
         user: User,
-        remember = false
+        remember = false,
+        loginIdValue?: number | null
     ) => {
 
         const storage = remember ? localStorage : sessionStorage
 
         storage.setItem("token", token)
         storage.setItem("user", JSON.stringify(user))
+        storage.setItem("sessionStart", String(Date.now()))
+        if (loginIdValue) {
+            storage.setItem("loginId", String(loginIdValue))
+            setLoginId(loginIdValue)
+        }
 
         setToken(token)
         setUser(user)
@@ -86,10 +134,15 @@ export const AuthProvider = ({
 
     /* ---------------- GOOGLE OAUTH ---------------- */
 
-    const setAuthFromOAuth = (token: string, user: User) => {
+    const setAuthFromOAuth = (token: string, user: User, loginIdParam?: number | null) => {
 
         localStorage.setItem("token", token)
         localStorage.setItem("user", JSON.stringify(user))
+        localStorage.setItem("sessionStart", String(Date.now()))
+        if (loginIdParam) {
+            localStorage.setItem("loginId", String(loginIdParam))
+            setLoginId(loginIdParam)
+        }
 
         setToken(token)
         setUser(user)
@@ -111,16 +164,43 @@ export const AuthProvider = ({
 
     /* ---------------- LOGOUT ---------------- */
 
-    const logout = () => {
+    const logout = async () => {
+        try {
+            const storedStart = localStorage.getItem("sessionStart") || sessionStorage.getItem("sessionStart")
+            const durationSec = storedStart
+                ? Math.max(0, Math.floor((Date.now() - Number(storedStart)) / 1000))
+                : 0
+
+            if (token && loginId) {
+                await fetch(`${import.meta.env.VITE_API_URL}/auth/session-end`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        token,
+                        loginId,
+                        durationSec
+                    })
+                })
+            }
+        } catch {
+            // ignore
+        }
 
         localStorage.removeItem("token")
         localStorage.removeItem("user")
+        localStorage.removeItem("loginId")
+        localStorage.removeItem("sessionStart")
 
         sessionStorage.removeItem("token")
         sessionStorage.removeItem("user")
+        sessionStorage.removeItem("loginId")
+        sessionStorage.removeItem("sessionStart")
 
         setToken(null)
         setUser(null)
+        setLoginId(null)
 
     }
     /* ---------------- CONTEXT VALUE ---------------- */
@@ -128,6 +208,7 @@ export const AuthProvider = ({
     const value: AuthContextType = {
         token,
         user,
+        loginId,
         login,
         logout,
         setAuthFromOAuth,

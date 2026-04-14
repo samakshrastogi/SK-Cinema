@@ -35,6 +35,14 @@ const S3Import = () => {
     const [importing, setImporting] = useState(false);
     const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importStats, setImportStats] = useState({
+        total: 0,
+        processed: 0,
+        imported: 0,
+        failed: 0,
+    });
+    const [uiMessage, setUiMessage] = useState("");
 
     const [bucketForm, setBucketForm] = useState({
         name: "",
@@ -61,8 +69,7 @@ const S3Import = () => {
     const handleAddBucket = async () => {
         try {
             await api.post("/video/s3/buckets", bucketForm);
-
-            alert("Bucket added successfully");
+            setUiMessage("Bucket added successfully.");
 
             setShowAddModal(false);
             setBucketForm({
@@ -77,11 +84,11 @@ const S3Import = () => {
             fetchBuckets();
         } catch (error: unknown) {
             if (axios.isAxiosError(error)) {
-                alert(error.response?.data?.message || "Request failed");
+                setUiMessage(error.response?.data?.message || "Request failed");
             } else if (error instanceof Error) {
-                alert(error.message);
+                setUiMessage(error.message);
             } else {
-                alert("Something went wrong");
+                setUiMessage("Something went wrong");
             }
         }
     };
@@ -90,7 +97,7 @@ const S3Import = () => {
 
     const handleScan = async () => {
         if (!selectedBucket) {
-            alert("Select a bucket first");
+            setUiMessage("Select a bucket first.");
             return;
         }
 
@@ -101,11 +108,11 @@ const S3Import = () => {
             setSelectedFiles([]);
         } catch (error: unknown) {
             if (axios.isAxiosError(error)) {
-                alert(error.response?.data?.message || "Request failed");
+                setUiMessage(error.response?.data?.message || "Request failed");
             } else if (error instanceof Error) {
-                alert(error.message);
+                setUiMessage(error.message);
             } else {
-                alert("Something went wrong");
+                setUiMessage("Something went wrong");
             }
         } finally {
             setScanning(false);
@@ -177,24 +184,53 @@ const S3Import = () => {
 
         try {
             setImporting(true);
+            setShowImportModal(true);
+
+            const total = selectedFiles.length;
+            let processed = 0;
+            let imported = 0;
+            let failed = 0;
+
+            setImportStats({
+                total,
+                processed: 0,
+                imported: 0,
+                failed: 0,
+            });
 
             for (const key of selectedFiles) {
-                await api.post("/video/s3/import", {
-                    credentialId: selectedBucket,
-                    sourceKey: key,
-                    visibility,
-                });
+                try {
+                    await api.post("/video/s3/import", {
+                        credentialId: selectedBucket,
+                        sourceKey: key,
+                        visibility,
+                    });
+                    imported += 1;
+                } catch (error) {
+                    failed += 1;
+                    console.error("Import failed for key:", key, error);
+                } finally {
+                    processed += 1;
+                    setImportStats({
+                        total,
+                        processed,
+                        imported,
+                        failed,
+                    });
+                }
             }
 
-            alert("Import completed");
+            setUiMessage(
+                `Import completed. Imported: ${imported}/${total}${failed ? `, Failed: ${failed}` : ""}`
+            );
             setSelectedFiles([]);
         } catch (error: unknown) {
             if (axios.isAxiosError(error)) {
-                alert(error.response?.data?.message || "Request failed");
+                setUiMessage(error.response?.data?.message || "Request failed");
             } else if (error instanceof Error) {
-                alert(error.message);
+                setUiMessage(error.message);
             } else {
-                alert("Something went wrong");
+                setUiMessage("Something went wrong");
             }
         } finally {
             setImporting(false);
@@ -218,6 +254,12 @@ const S3Import = () => {
                         + Add Bucket
                     </button>
                 </div>
+
+                {uiMessage && (
+                    <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-3 text-sm text-gray-100">
+                        {uiMessage}
+                    </div>
+                )}
 
 
                 {/* Bucket Selector */}
@@ -473,6 +515,62 @@ const S3Import = () => {
                                 </div>
 
                             </div>
+                        </div>
+                    </div>
+                )}
+                {showImportModal && (
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                        <div className="w-full max-w-lg bg-[#0b1120] border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-semibold text-white">Import Progress</h3>
+                                {!importing && (
+                                    <button
+                                        onClick={() => setShowImportModal(false)}
+                                        className="text-gray-400 hover:text-white"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <div className="w-full h-3 rounded-full bg-white/10 overflow-hidden">
+                                    <div
+                                        className="h-full bg-purple-600 transition-all"
+                                        style={{
+                                            width: `${importStats.total
+                                                ? Math.round((importStats.processed / importStats.total) * 100)
+                                                : 0}%`,
+                                        }}
+                                    />
+                                </div>
+
+                                <div className="text-sm text-gray-300">
+                                    {importStats.total
+                                        ? `${Math.round((importStats.processed / importStats.total) * 100)}%`
+                                        : "0%"}
+                                </div>
+                            </div>
+
+                            <div className="text-sm text-gray-300">
+                                Imported videos: {importStats.imported} / {importStats.total}
+                            </div>
+
+                            <div className="text-sm text-gray-400">
+                                Processed files: {importStats.processed} / {importStats.total}
+                                {importStats.failed > 0 ? ` • Failed: ${importStats.failed}` : ""}
+                            </div>
+
+                            {!importing && (
+                                <div className="pt-2">
+                                    <button
+                                        onClick={() => setShowImportModal(false)}
+                                        className="bg-purple-600 hover:bg-purple-700 transition px-4 py-2 rounded-lg text-sm"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

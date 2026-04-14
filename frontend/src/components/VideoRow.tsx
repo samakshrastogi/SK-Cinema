@@ -1,13 +1,15 @@
 import { useRef, useEffect } from "react"
+import type { ReactNode } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import VideoCard, { Video } from "./VideoCard"
 
 interface Props {
     title: string
     videos: Video[]
+    rightSlot?: ReactNode
 }
 
-const VideoRow = ({ title, videos }: Props) => {
+const VideoRow = ({ title, videos, rightSlot }: Props) => {
     const scrollRef = useRef<HTMLDivElement | null>(null)
 
     /* ---------------- DEBUG ---------------- */
@@ -61,6 +63,7 @@ const VideoRow = ({ title, videos }: Props) => {
                 <h2 className="text-base sm:text-xl font-semibold tracking-wide">
                     {title}
                 </h2>
+                {rightSlot ? <div>{rightSlot}</div> : null}
             </div>
 
             {/* MOBILE */}
@@ -133,12 +136,11 @@ const VideoRow = ({ title, videos }: Props) => {
                         return (
                             <div
                                 key={key}
-                                className="
-                                    min-w-50 lg:min-w-55
-                                    shrink-0
-                                    transition-transform duration-300
-                                    hover:scale-105
-                                "
+                                className={`shrink-0 transition-transform duration-300 hover:scale-105 ${
+                                    video.orientation === "PORTRAIT"
+                                        ? "min-w-36 lg:min-w-40"
+                                        : "min-w-50 lg:min-w-55"
+                                }`}
                             >
                                 <VideoCard video={video} />
                             </div>

@@ -5,11 +5,13 @@ import { io } from "socket.io-client"
 
 import { api } from "@/api/axios"
 import AppLayout from "@/layouts/AppLayout"
+import SpritesheetPicker from "@/components/SpritesheetPicker"
 
 interface Channel {
     id: number
     name: string
     username: string
+    description?: string
 }
 
 type UploadStatus =
@@ -19,9 +21,32 @@ type UploadStatus =
     | "completed"
     | "error"
 
+interface SpritesheetData {
+    spritesheetUrl: string
+    frameWidth: number
+    frameHeight: number
+    cols: number
+    rows: number
+    totalFrames: number
+    intervalSec: number
+}
+
+interface AIMetadata {
+    title?: string | null
+    description?: string | null
+    keywords?: string[]
+    tags?: string[]
+}
+
 interface UploadItem {
     file: File
     preview: string
+    thumbnailPreview?: string
+    thumbnailFile?: File
+    thumbnailKey?: string
+    spritesheet?: SpritesheetData
+    selectedSpriteFrameIndex?: number
+    isSavingSpriteSelection?: boolean
     duration: number
 
     uploadProgress: number
@@ -35,7 +60,6 @@ interface UploadItem {
     tags: string
 
     videoId?: number
-    visibility: "PUBLIC" | "PRIVATE"
 }
 
 const socket = io(import.meta.env.VITE_SOCKET_URL, {
@@ -43,15 +67,56 @@ const socket = io(import.meta.env.VITE_SOCKET_URL, {
     transports: ["websocket"]
 })
 
+const wait = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms))
+
 const Upload = () => {
 
     const navigate = useNavigate()
 
     const [channel, setChannel] = useState<Channel | null>(null)
     const [loadingChannel, setLoadingChannel] = useState(true)
+    const [creatingChannel, setCreatingChannel] = useState(false)
+    const [channelNameInput, setChannelNameInput] = useState("")
+    const [channelDescriptionInput, setChannelDescriptionInput] = useState("")
+    const [channelError, setChannelError] = useState("")
 
     const [queue, setQueue] = useState<UploadItem[]>([])
     const [uploading, setUploading] = useState(false)
+    const [globalVisibility, setGlobalVisibility] = useState<"PUBLIC" | "PRIVATE" | "ORGANIZATION">("PUBLIC")
+
+    const fetchAIMetadata = async (videoId: number | string) => {
+        let lastError: unknown = null
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+                const res = await api.get(`/ai/video/${videoId}`)
+                const payload = (res.data?.data ?? res.data) as AIMetadata
+                return payload
+            } catch (err) {
+                lastError = err
+                await wait(1200)
+            }
+        }
+
+        throw lastError
+    }
+
+    const fetchSpritesheetMetadata = async (videoId: number | string) => {
+        let lastError: unknown = null
+
+        for (let attempt = 0; attempt < 20; attempt++) {
+            try {
+                const res = await api.get(`/video/upload/${videoId}/spritesheet`)
+                return res.data?.data as SpritesheetData
+            } catch (err) {
+                lastError = err
+                await wait(1000)
+            }
+        }
+
+        throw lastError
+    }
 
     /* ---------------- SOCKET EVENTS ---------------- */
 
@@ -92,30 +157,55 @@ const Upload = () => {
             if (!videoId) return
 
             try {
-                const res = await api.get(`/video/${videoId}`)
-                const video = res.data
+                const ai = await fetchAIMetadata(videoId)
 
                 setQueue(prev =>
                     prev.map(item =>
-                        item.videoId === videoId
+                        String(item.videoId) === String(videoId)
                             ? {
                                 ...item,
                                 status: "completed",
                                 aiProgress: 100,
 
                                 // AI fields from backend
-                                title: video.aiTitle ?? item.title,
-                                description: video.aiDescription ?? "",
+                                title: item.title.trim() ? item.title : (ai.title ?? ""),
+                                description: item.description.trim()
+                                    ? item.description
+                                    : (ai.description ?? ""),
 
                                 // optional (if backend later returns them)
-                                tags: video.tags?.join(", ") ?? ""
+                                tags: ai.tags?.join(", ") ?? ""
                             }
                             : item
                     )
                 )
 
+                try {
+                    const spritesheet = await fetchSpritesheetMetadata(videoId)
+                    setQueue(prev =>
+                        prev.map(item =>
+                            String(item.videoId) === String(videoId)
+                                ? { ...item, spritesheet }
+                                : item
+                        )
+                    )
+                } catch (spriteErr) {
+                    console.error("Spritesheet not ready yet", spriteErr)
+                }
+
             } catch (err) {
                 console.error("Failed fetching AI data", err)
+                setQueue(prev =>
+                    prev.map(item =>
+                        String(item.videoId) === String(videoId)
+                            ? {
+                                ...item,
+                                status: "completed",
+                                aiProgress: 100
+                            }
+                            : item
+                    )
+                )
             }
 
         })
@@ -184,6 +274,12 @@ const Upload = () => {
 
                     file,
                     preview,
+                    thumbnailPreview: undefined,
+                    thumbnailFile: undefined,
+                    thumbnailKey: undefined,
+                    spritesheet: undefined,
+                    selectedSpriteFrameIndex: undefined,
+                    isSavingSpriteSelection: false,
                     duration: video.duration,
 
                     uploadProgress: 0,
@@ -192,10 +288,9 @@ const Upload = () => {
                     speed: 0,
                     status: "waiting",
 
-                    title: file.name.replace(/\.[^/.]+$/, ""),
+                    title: "",
                     description: "",
-                    tags: "",
-                    visibility: "PUBLIC" // ✅ DEFAULT
+                    tags: ""
                 }
 
                 setQueue(prev => [...prev, newItem])
@@ -216,6 +311,57 @@ const Upload = () => {
             )
         )
 
+    }
+
+    const setThumbnailForItem = (index: number, file?: File) => {
+        if (!file) return
+
+        const preview = URL.createObjectURL(file)
+        updateItem(index, {
+            thumbnailFile: file,
+            thumbnailPreview: preview
+        })
+    }
+
+    const selectSpriteFrame = (index: number, frameIndex: number) => {
+        updateItem(index, { selectedSpriteFrameIndex: frameIndex })
+    }
+
+    const saveSpriteFrameAsThumbnail = async (index: number) => {
+        const item = queue[index]
+        if (!item.videoId || item.selectedSpriteFrameIndex === undefined) return
+
+        try {
+            updateItem(index, { isSavingSpriteSelection: true })
+
+            const res = await api.post(
+                `/video/upload/${item.videoId}/spritesheet/select-thumbnail`,
+                { frameIndex: item.selectedSpriteFrameIndex }
+            )
+
+            const data = res.data?.data
+
+            updateItem(index, {
+                thumbnailKey: data?.thumbnailKey,
+                thumbnailPreview: data?.thumbnailUrl || item.thumbnailPreview,
+                isSavingSpriteSelection: false
+            })
+        } catch (err) {
+            console.error("Failed to save spritesheet thumbnail", err)
+            updateItem(index, { isSavingSpriteSelection: false })
+        }
+    }
+
+    const loadSpritesheetForItem = async (index: number) => {
+        const item = queue[index]
+        if (!item.videoId) return
+
+        try {
+            const spritesheet = await fetchSpritesheetMetadata(item.videoId)
+            updateItem(index, { spritesheet })
+        } catch (err) {
+            console.error("Failed to load spritesheet", err)
+        }
     }
 
 
@@ -291,6 +437,28 @@ const Upload = () => {
                 },
             });
 
+            /* ---------- 2.5 OPTIONAL CUSTOM THUMBNAIL ---------- */
+
+            let thumbnailKey: string | undefined = undefined
+
+            if (item.thumbnailFile) {
+                const thumbPresignRes = await api.post("/video/upload/thumbnail-presign", {
+                    fileName: item.thumbnailFile.name,
+                    fileType: item.thumbnailFile.type
+                })
+
+                const {
+                    uploadUrl: thumbnailUploadUrl,
+                    key: uploadedThumbnailKey
+                } = thumbPresignRes.data.data
+
+                await axios.put(thumbnailUploadUrl, item.thumbnailFile, {
+                    headers: { "Content-Type": item.thumbnailFile.type }
+                })
+
+                thumbnailKey = uploadedThumbnailKey
+            }
+
             /* ---------- 3. COMPLETE UPLOAD ---------- */
 
             const completeRes = await api.post("/video/upload/complete", {
@@ -303,7 +471,8 @@ const Upload = () => {
                     .filter(Boolean),
                 duration: item.duration,
                 size: item.file.size,
-                visibility: item.visibility // ✅ IMPORTANT
+                visibility: globalVisibility, // ✅ IMPORTANT
+                thumbnailKey
             });
 
             const videoId = completeRes.data.data.id;
@@ -326,6 +495,7 @@ const Upload = () => {
                         ? {
                             ...item,
                             videoId,
+                            thumbnailKey: thumbnailKey ?? item.thumbnailKey,
                             status: "processing",
                             uploadProgress: 100,
                         }
@@ -341,6 +511,32 @@ const Upload = () => {
             });
         }
     };
+
+    const createChannelFirstTime = async () => {
+        const trimmedName = channelNameInput.trim()
+        if (!trimmedName) {
+            setChannelError("Channel name is required.")
+            return
+        }
+
+        try {
+            setCreatingChannel(true)
+            setChannelError("")
+
+            const res = await api.post("/channel", {
+                name: trimmedName,
+                description: channelDescriptionInput.trim() || undefined
+            })
+
+            setChannel(res.data?.data || null)
+        } catch (err: any) {
+            const msg =
+                err?.response?.data?.message || "Failed to create channel."
+            setChannelError(msg)
+        } finally {
+            setCreatingChannel(false)
+        }
+    }
     /* ---------------- LOADING ---------------- */
 
     if (loadingChannel) {
@@ -414,19 +610,107 @@ const Upload = () => {
                     onChange={(e) => handleFiles(e.target.files)}
                 />
 
+                {!channel && (
+                    <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center px-4">
+                        <div className="w-full max-w-xl bg-[#111] border border-white/10 rounded-2xl p-6 space-y-4">
+                            <h2 className="text-xl font-semibold">Create Your Channel</h2>
+                            <p className="text-sm text-gray-400">
+                                Before your first upload, create a channel.
+                            </p>
+
+                            <div className="space-y-1">
+                                <label className="text-sm text-gray-300">Channel Name *</label>
+                                <input
+                                    value={channelNameInput}
+                                    onChange={(e) => setChannelNameInput(e.target.value)}
+                                    placeholder="Enter channel name"
+                                    className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 focus:border-purple-500 outline-none"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-sm text-gray-300">Channel Description</label>
+                                <textarea
+                                    rows={3}
+                                    value={channelDescriptionInput}
+                                    onChange={(e) => setChannelDescriptionInput(e.target.value)}
+                                    placeholder="Tell viewers about your channel"
+                                    className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 focus:border-purple-500 outline-none"
+                                />
+                            </div>
+
+                            {channelError && (
+                                <p className="text-sm text-red-400">{channelError}</p>
+                            )}
+
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={createChannelFirstTime}
+                                    disabled={creatingChannel}
+                                    className="bg-purple-600 hover:bg-purple-700 transition px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+                                >
+                                    {creatingChannel ? "Creating..." : "Create Channel"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* START BUTTON */}
 
                 {queue.length > 0 && (
 
-                    <button
-                        onClick={startUploadQueue}
-                        disabled={uploading}
-                        className="bg-purple-600 hover:bg-purple-700 transition px-6 py-3 rounded-lg text-sm font-medium"
-                    >
-                        {uploading ? "Uploading..." : "Start Uploading"}
-                    </button>
+                    <div className="flex items-center justify-between gap-4">
+
+                        <button
+                            onClick={startUploadQueue}
+                            disabled={uploading}
+                            className="bg-purple-600 hover:bg-purple-700 transition px-6 py-3 rounded-lg text-sm font-medium"
+                        >
+                            {uploading ? "Uploading..." : "Start Uploading"}
+                        </button>
+
+                        {/* VISIBILITY TOGGLE */}
+
+                        <div className="flex gap-4">
+
+                            <button
+                                onClick={() => setGlobalVisibility("PUBLIC")}
+                                className={`px-4 py-2 rounded-lg text-sm ${globalVisibility === "PUBLIC"
+                                    ? "bg-green-600"
+                                    : "bg-gray-700"
+                                    }`}
+                            >
+                                Public
+                            </button>
+
+                            <button
+                                onClick={() => setGlobalVisibility("PRIVATE")}
+                                className={`px-4 py-2 rounded-lg text-sm ${globalVisibility === "PRIVATE"
+                                    ? "bg-red-600"
+                                    : "bg-gray-700"
+                                    }`}
+                            >
+                                Private
+                            </button>
+
+                            <button
+                                onClick={() => setGlobalVisibility("ORGANIZATION")}
+                                className={`px-4 py-2 rounded-lg text-sm ${globalVisibility === "ORGANIZATION"
+                                    ? "bg-blue-600"
+                                    : "bg-gray-700"
+                                    }`}
+                            >
+                                Organization
+                            </button>
+
+                        </div>
+
+                    </div>
 
                 )}
+                
 
                 {/* QUEUE */}
 
@@ -440,38 +724,22 @@ const Upload = () => {
                         >
 
                             {/* VIDEO + PROGRESS */}
-                            {/* VISIBILITY TOGGLE */}
-
-                            <div className="flex gap-4 mt-4">
-
-                                <button
-                                    onClick={() => updateItem(index, { visibility: "PUBLIC" })}
-                                    className={`px-4 py-2 rounded-lg text-sm ${item.visibility === "PUBLIC"
-                                        ? "bg-green-600"
-                                        : "bg-gray-700"
-                                        }`}
-                                >
-                                    Public
-                                </button>
-
-                                <button
-                                    onClick={() => updateItem(index, { visibility: "PRIVATE" })}
-                                    className={`px-4 py-2 rounded-lg text-sm ${item.visibility === "PRIVATE"
-                                        ? "bg-red-600"
-                                        : "bg-gray-700"
-                                        }`}
-                                >
-                                    Private
-                                </button>
-
-                            </div>
+                            
 
                             <div className="flex gap-6 items-start">
 
-                                <video
-                                    src={item.preview}
-                                    className="w-56 h-32 object-cover rounded-xl"
-                                />
+                                {item.thumbnailPreview ? (
+                                    <img
+                                        src={item.thumbnailPreview}
+                                        alt="Thumbnail preview"
+                                        className="w-56 h-32 object-cover rounded-xl"
+                                    />
+                                ) : (
+                                    <video
+                                        src={item.preview}
+                                        className="w-56 h-32 object-cover rounded-xl"
+                                    />
+                                )}
 
                                 <div className="flex-1">
 
@@ -513,84 +781,139 @@ const Upload = () => {
 
                             </div>
 
-                            {/* ✅ AI RESULT (moved inside card) */}
+                            <div className="space-y-6">
 
-                            {item.status === "completed" && (
+                                {/* THUMBNAIL */}
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-400">
+                                        Thumbnail
+                                    </label>
 
-                                <div className="space-y-6">
-
-                                    {/* TITLE */}
-
-                                    <div className="space-y-1">
-
-                                        <label className="text-sm text-gray-400">
-                                            Title
-                                        </label>
-
-                                        <input
-                                            value={item.title}
-                                            onChange={(e) =>
-                                                updateItem(index, { title: e.target.value })
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            disabled={item.status !== "waiting"}
+                                            onClick={() =>
+                                                document
+                                                    .getElementById(`thumbInput-${index}`)
+                                                    ?.click()
                                             }
-                                            placeholder="Display Name"
-                                            aria-label="Display Name"
-                                            className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 focus:border-purple-500 outline-none"
-                                        />
+                                            className="px-3 py-2 bg-gray-700 rounded-lg text-xs disabled:opacity-60"
+                                        >
+                                            Upload Thumbnail
+                                        </button>
 
+                                        <p className="text-xs text-gray-400">
+                                            Leave empty to use auto-generated thumbnail
+                                        </p>
                                     </div>
 
-                                    {/* DESCRIPTION */}
+                                    <input
+                                        id={`thumbInput-${index}`}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        disabled={item.status !== "waiting"}
+                                        onChange={(e) =>
+                                            setThumbnailForItem(index, e.target.files?.[0])
+                                        }
+                                    />
+                                </div>
 
-                                    <div className="space-y-1">
+                                {/* TITLE */}
+                                <div className="space-y-1">
+                                    <label className="text-sm text-gray-400">
+                                        Title
+                                    </label>
+                                    <input
+                                        value={item.title}
+                                        onChange={(e) =>
+                                            updateItem(index, { title: e.target.value })
+                                        }
+                                        disabled={item.status !== "waiting"}
+                                        placeholder="Leave empty to use autogenerated title"
+                                        aria-label="Video title"
+                                        className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 focus:border-purple-500 outline-none disabled:opacity-70"
+                                    />
+                                </div>
 
-                                        <label className="text-sm text-gray-400">
-                                            Description
-                                        </label>
+                                {/* DESCRIPTION */}
+                                <div className="space-y-1">
+                                    <label className="text-sm text-gray-400">
+                                        Description
+                                    </label>
+                                    <textarea
+                                        rows={4}
+                                        value={item.description}
+                                        onChange={(e) =>
+                                            updateItem(index, { description: e.target.value })
+                                        }
+                                        disabled={item.status !== "waiting"}
+                                        placeholder="Leave empty to use autogenerated description"
+                                        aria-label="Video description"
+                                        className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 focus:border-purple-500 outline-none disabled:opacity-70"
+                                    />
+                                </div>
 
-                                        <textarea
-                                            rows={4}
-                                            value={item.description}
-                                            onChange={(e) =>
-                                                updateItem(index, { description: e.target.value })
-                                            }
-                                            placeholder="Display Name"
-                                            aria-label="Display Name"
-                                            className="w-full bg-[#0b1120] border border-gray-700 rounded-lg px-4 py-2 focus:border-purple-500 outline-none"
-                                        />
-
-                                    </div>
-
-                                    {/* KEYWORDS */}
-
+                                {item.status === "completed" && (
                                     <div className="space-y-2">
-
                                         <label className="text-sm text-gray-400">
                                             Keywords
                                         </label>
 
                                         <div className="flex flex-wrap gap-2">
-
                                             {item.tags
                                                 .split(",")
                                                 .filter(tag => tag.trim())
                                                 .map((tag, i) => (
-
                                                     <span
                                                         key={i}
                                                         className="bg-purple-600/20 text-purple-300 text-xs px-3 py-1 rounded-full"
                                                     >
                                                         {tag.trim()}
                                                     </span>
-
                                                 ))}
-
-                                        </div>
-
+                                            </div>
                                     </div>
+                                )}
 
-                                </div>
+                                {item.status === "completed" && (
+                                    <div className="space-y-3">
+                                        <label className="text-sm text-gray-400">
+                                            Pick thumbnail from spritesheet
+                                        </label>
 
-                            )}
+                                        {item.spritesheet ? (
+                                            <SpritesheetPicker
+                                                spritesheet={item.spritesheet}
+                                                selectedFrameIndex={item.selectedSpriteFrameIndex}
+                                                onSelectFrame={(frameIndex) => selectSpriteFrame(index, frameIndex)}
+                                                onReset={() =>
+                                                    updateItem(index, {
+                                                        selectedSpriteFrameIndex: undefined
+                                                    })
+                                                }
+                                                onSave={() => saveSpriteFrameAsThumbnail(index)}
+                                                saving={item.isSavingSpriteSelection}
+                                                saveLabel="Save Thumbnail"
+                                            />
+                                        ) : (
+                                            <div className="flex items-center gap-3">
+                                                <p className="text-xs text-gray-400">
+                                                    Spritesheet is not ready yet.
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => loadSpritesheetForItem(index)}
+                                                    className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs"
+                                                >
+                                                    Retry load spritesheet
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
                         </div>
 

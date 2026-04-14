@@ -7,7 +7,7 @@ import {
     googleLogin,
 } from "@/api/auth.api";
 import { useAuth } from "@/context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const Auth = () => {
     const [mode, setMode] = useState<"login" | "register">("login");
@@ -28,10 +28,12 @@ const Auth = () => {
 
     const { login, token } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    const redirectTo = (location.state as { from?: string } | null)?.from || "/home";
 
     useEffect(() => {
-        if (token) navigate("/home");
-    }, [token, navigate]);
+        if (token) navigate(redirectTo, { replace: true });
+    }, [token, navigate, redirectTo]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -44,8 +46,8 @@ const Auth = () => {
                 const res = await loginUser(email, password, remember);
                 if (!res.success) throw new Error(res.message);
 
-                login(res.data!.token, res.data!.user, remember);
-                navigate("/home");
+                login(res.data!.token, res.data!.user, remember, res.data!.loginId ?? null);
+                navigate(redirectTo, { replace: true });
             } else {
                 const res = await registerUser(name, email, password, confirmPassword);
                 if (!res.success) throw new Error(res.message);

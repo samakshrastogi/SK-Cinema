@@ -5,9 +5,17 @@ import VideoCard from "@/components/VideoCard"
 
 interface Video {
     id: number
+    publicId?: string
     title: string
     aiTitle?: string
     thumbnailKey?: string
+    uploaderAvatarKey?: string
+    uploaderAvatarUrl?: string
+    uploaderName?: string
+    createdAt?: string
+    channel?: {
+        name?: string
+    }
 }
 
 const FavouritesPage = () => {

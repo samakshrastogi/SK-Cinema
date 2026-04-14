@@ -14,7 +14,9 @@ export interface LoginData {
         username: string
         name?: string
         avatarKey?: string
+        platformAdmin?: boolean
     }
+    loginId?: number
 }
 
 export const registerUser = async (

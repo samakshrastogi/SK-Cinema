@@ -1,19 +1,51 @@
 import { useEffect, useRef, useState } from "react"
-import { Search, Bell, Menu } from "lucide-react"
+import { Search, Bell } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
-import { useLayout } from "@/context/LayoutContext"
-import { useNavigate, useLocation } from "react-router-dom"
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import UserAvatar from "@/components/UserAvatar"
+import { api } from "@/api/axios"
+
+interface NotificationItem {
+    id: number
+    title: string
+    message: string
+    link?: string | null
+    isRead: boolean
+    createdAt: string
+}
+
+interface ActiveOrganizationLite {
+    id: number
+    name: string
+    ownerId?: number
+}
 
 const Topbar = () => {
     const { logout, user } = useAuth()
-    const { toggleSidebar } = useLayout()
     const navigate = useNavigate()
     const location = useLocation()
+    const [searchParams] = useSearchParams()
 
     const [query, setQuery] = useState("")
     const [dropdownOpen, setDropdownOpen] = useState(false)
+    const [notificationOpen, setNotificationOpen] = useState(false)
+    const [notifications, setNotifications] = useState<NotificationItem[]>([])
+    const [activeOrganization, setActiveOrganization] = useState<ActiveOrganizationLite | null>(null)
+    const [canLeaveOrganization, setCanLeaveOrganization] = useState(false)
 
     const dropdownRef = useRef<HTMLDivElement>(null)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+    const notificationRef = useRef<HTMLDivElement>(null)
+
+    const loadNotifications = async () => {
+        try {
+            const res = await api.get("/notification")
+            const rows = (res.data?.data || []) as NotificationItem[]
+            setNotifications(rows)
+        } catch {
+            setNotifications([])
+        }
+    }
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -23,42 +55,140 @@ const Topbar = () => {
             ) {
                 setDropdownOpen(false)
             }
+
+            if (
+                notificationRef.current &&
+                !notificationRef.current.contains(event.target as Node)
+            ) {
+                setNotificationOpen(false)
+            }
         }
 
         document.addEventListener("mousedown", handleClickOutside)
         return () => document.removeEventListener("mousedown", handleClickOutside)
     }, [])
 
-    const handleLogout = () => {
-        logout()
+    useEffect(() => {
+        loadNotifications()
+        const timer = window.setInterval(loadNotifications, 20000)
+        return () => window.clearInterval(timer)
+    }, [])
+
+    useEffect(() => {
+        const fetchOrg = async () => {
+            try {
+                const res = await api.get("/organization/my")
+                const memberships = res.data?.data?.memberships || []
+                const accessOrgId = res.data?.data?.access?.activeOrganizationId
+                const activeMembership = memberships.find(
+                    (m: any) => m.organization?.id === accessOrgId
+                )
+
+                if (activeMembership?.organization) {
+                    setActiveOrganization({
+                        id: activeMembership.organization.id,
+                        name: activeMembership.organization.name,
+                        ownerId: activeMembership.organization.ownerId
+                    })
+                } else {
+                    setActiveOrganization(null)
+                }
+
+                const canLeave =
+                    Boolean(activeMembership?.organization) &&
+                    activeMembership.organization.ownerId !== user?.id
+                setCanLeaveOrganization(canLeave)
+            } catch {
+                setActiveOrganization(null)
+                setCanLeaveOrganization(false)
+            }
+        }
+
+        fetchOrg()
+    }, [user?.id])
+
+    const handleLogout = async () => {
+        await logout()
         navigate("/login")
     }
 
-    const getInitials = (name?: string) => {
-        if (!name) return "?"
-        return name
-            .split(" ")
-            .map((w) => w[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2)
+    const handleLeaveOrganization = async () => {
+        if (!activeOrganization) return
+        const ok = window.confirm(
+            `Leave ${activeOrganization.name}?`
+        )
+        if (!ok) return
+
+        try {
+            await api.post("/organization/leave", {
+                organizationId: activeOrganization.id
+            })
+            setActiveOrganization(null)
+            setDropdownOpen(false)
+        } catch (error) {
+            console.error("Leave organization failed", error)
+        }
     }
 
-    const avatarSrc = (() => {
-        if (!user) return null
-        if (user.avatarUrl) return user.avatarUrl
-        if (user.avatarKey) {
-            if (user.avatarKey.startsWith("http")) return user.avatarKey
-            return `https://${import.meta.env.VITE_CLOUDFRONT_DOMAIN}/${user.avatarKey}`
+    useEffect(() => {
+        if (location.pathname === "/search") {
+            setQuery(searchParams.get("q") || "")
         }
-        return null
-    })()
+    }, [location.pathname, searchParams])
 
-    // ✅ Only show toggle on specific pages (mobile only)
-    const showSidebarToggle =
-        location.pathname.startsWith("/profile") ||
-        location.pathname.startsWith("/settings") ||
-        location.pathname.startsWith("/admin")
+    useEffect(() => {
+        const trimmed = query.trim()
+        if (!trimmed) return
+
+        const timer = window.setTimeout(() => {
+            const hasFocus = document.activeElement === searchInputRef.current
+            if (!hasFocus) return
+
+            const currentSearchQ = (searchParams.get("q") || "").trim()
+            if (location.pathname === "/search" && currentSearchQ === trimmed) {
+                return
+            }
+
+            navigate(`/search?q=${encodeURIComponent(trimmed)}`)
+        }, 300)
+
+        return () => window.clearTimeout(timer)
+    }, [query, navigate, location.pathname, searchParams])
+
+    const handleSearch = () => {
+        const trimmed = query.trim()
+        navigate(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : "/search")
+    }
+
+    const unreadCount = notifications.filter((n) => !n.isRead).length
+
+    const handleNotificationClick = async (item: NotificationItem) => {
+        try {
+            if (!item.isRead) {
+                await api.post(`/notification/${item.id}/read`)
+                setNotifications((prev) =>
+                    prev.map((row) => (row.id === item.id ? { ...row, isRead: true } : row))
+                )
+            }
+        } catch {
+            // no-op
+        }
+
+        setNotificationOpen(false)
+
+        if (item.link) {
+            navigate(item.link)
+        }
+    }
+
+    const markAllRead = async () => {
+        try {
+            await api.post("/notification/read-all")
+            setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
+        } catch {
+            // no-op
+        }
+    }
 
     return (
         <header
@@ -71,7 +201,7 @@ const Topbar = () => {
         "
         >
             {/* 🔷 LEFT */}
-            <div className="flex items-center gap-3 md:gap-4">                
+            <div className="flex items-center gap-3 md:gap-4">
 
                 {/* LOGO */}
                 <div
@@ -90,43 +220,107 @@ const Topbar = () => {
                 </div>
 
                 {/* SEARCH (DESKTOP) */}
-                <div className="hidden md:flex items-center bg-white/10 px-4 py-2 rounded-lg w-[260px] lg:w-[380px] focus-within:ring-2 focus-within:ring-purple-500">
-                    <Search size={18} className="text-gray-400" />
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault()
+                        handleSearch()
+                    }}
+                    className="hidden md:flex items-center bg-white/10 px-4 py-2 rounded-lg w-[260px] lg:w-[380px] focus-within:ring-2 focus-within:ring-purple-500"
+                >
+                    <button type="submit" className="text-gray-400" aria-label="Search">
+                        <Search size={18} />
+                    </button>
                     <input
+                        ref={searchInputRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search films..."
                         className="bg-transparent outline-none ml-2 w-full text-sm"
                     />
-                </div>
+                </form>
             </div>
 
             {/* 🔷 RIGHT */}
             <div className="flex items-center gap-3 md:gap-4 relative">
 
                 {/* SEARCH ICON (MOBILE) */}
-                <button className="md:hidden p-2 bg-white/10 rounded-lg" aria-label="h">
+                <button
+                    className="md:hidden p-2 bg-white/10 rounded-lg"
+                    aria-label="Search"
+                    onClick={handleSearch}
+                >
                     <Search size={18} />
                 </button>
 
                 {/* NOTIFICATIONS */}
-                <Bell className="text-gray-300 cursor-pointer" />
+                <div ref={notificationRef} className="relative">
+                    <button
+                        onClick={() => setNotificationOpen((v) => !v)}
+                        className="relative text-gray-300 cursor-pointer"
+                        aria-label="Notifications"
+                    >
+                        <Bell className="text-gray-300" />
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[10px] text-white leading-4 text-center">
+                                {unreadCount > 9 ? "9+" : unreadCount}
+                            </span>
+                        )}
+                    </button>
+
+                    {notificationOpen && (
+                        <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-y-auto bg-gray-900 border border-gray-800 rounded-xl shadow-xl p-3">
+                            <div className="mb-2 flex items-center justify-between">
+                                <p className="text-sm font-semibold">Notifications</p>
+                                {notifications.length > 0 && unreadCount > 0 && (
+                                    <button
+                                        onClick={markAllRead}
+                                        className="text-xs text-blue-300 hover:text-blue-200"
+                                    >
+                                        Mark all read
+                                    </button>
+                                )}
+                            </div>
+
+                            {notifications.length === 0 ? (
+                                <p className="text-xs text-gray-400">No notifications yet.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {notifications.map((item) => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => handleNotificationClick(item)}
+                                            className={`w-full text-left p-2 rounded-lg transition border ${
+                                                item.isRead
+                                                    ? "bg-white/5 hover:bg-white/10 border-white/5"
+                                                    : "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30"
+                                            }`}
+                                        >
+                                            <p className="text-sm text-white truncate">
+                                                {item.title}
+                                            </p>
+                                            <p className="text-xs text-gray-300 line-clamp-2">
+                                                {item.message}
+                                            </p>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 {/* PROFILE */}
                 <div ref={dropdownRef} className="relative">
                     <div
                         onClick={() => setDropdownOpen(!dropdownOpen)}
-                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-purple-600 overflow-hidden flex items-center justify-center cursor-pointer font-semibold"
+                        className="cursor-pointer"
                     >
-                        {avatarSrc ? (
-                            <img
-                                src={avatarSrc}
-                                alt="User Profile"
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            getInitials(user?.name)
-                        )}
+                        <UserAvatar
+                            name={user?.name}
+                            avatarUrl={user?.avatarUrl}
+                            avatarKey={user?.avatarKey}
+                            alt="User Profile"
+                        />
                     </div>
 
                     {dropdownOpen && user && (
@@ -149,6 +343,15 @@ const Topbar = () => {
                             >
                                 View Profile
                             </button>
+
+                            {activeOrganization && canLeaveOrganization && (
+                                <button
+                                    onClick={handleLeaveOrganization}
+                                    className="mt-2 w-full bg-amber-600 hover:bg-amber-700 transition p-2 rounded-lg text-sm"
+                                >
+                                    Leave Organization
+                                </button>
+                            )}
 
                             <button
                                 onClick={handleLogout}

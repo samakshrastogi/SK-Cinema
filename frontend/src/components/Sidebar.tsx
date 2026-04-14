@@ -1,16 +1,15 @@
-import { Home, Compass, Film, Heart, User } from "lucide-react"
+import { Home, Search, Film, Heart, Smartphone } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
 
 const Sidebar = () => {
     const navigate = useNavigate()
     const location = useLocation()
-
     const items = [
         { icon: Home, path: "/home", label: "Home" },
+        { icon: Search, path: "/search", label: "Search" },
+        { icon: Smartphone, path: "/portrait", label: "Portrait" },
         { icon: Film, path: "/playlists", label: "Playlists" },
-        { icon: Heart, path: "/favorites", label: "Favorites" },
-        { icon: User, path: "/profile", label: "Profile" },
-        { icon: Compass, path: "/explore", label: "Explore" },
+        { icon: Heart, path: "/favorites", label: "Favorites" }
     ]
 
     return (

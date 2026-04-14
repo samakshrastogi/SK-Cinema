@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { api } from "@/api/axios"
 import AppLayout from "@/layouts/AppLayout"
 import HeroCarousel from "@/components/HeroCarousel"
@@ -12,6 +12,14 @@ interface Video {
   aiTitle?: string
   thumbnailKey?: string
   videoKey?: string
+  uploaderAvatarKey?: string
+  uploaderAvatarUrl?: string
+  uploaderName?: string
+  createdAt?: string
+  orientation?: "PORTRAIT" | "LANDSCAPE" | "SQUARE" | null
+  channel?: {
+    name?: string
+  }
 }
 
 interface RawVideo {
@@ -20,6 +28,14 @@ interface RawVideo {
   aiTitle?: string
   thumbnailKey?: string
   videoKey?: string
+  uploaderAvatarKey?: string
+  uploaderAvatarUrl?: string
+  uploaderName?: string
+  createdAt?: string
+  orientation?: "PORTRAIT" | "LANDSCAPE" | "SQUARE" | null
+  channel?: {
+    name?: string
+  }
 }
 
 /* ---------------- COMPONENT ---------------- */
@@ -27,10 +43,14 @@ interface RawVideo {
 const Home = () => {
 
   const [videos, setVideos] = useState<Video[]>([])
-  const [trending, setTrending] = useState<Video[]>([])
-  const [recommended, setRecommended] = useState<Video[]>([])
-  const [continueWatching, setContinueWatching] = useState<Video[]>([])
+  const [landscapeVideos, setLandscapeVideos] = useState<Video[]>([])
+  const [portraitVideos, setPortraitVideos] = useState<Video[]>([])
+  const [orgVideos, setOrgVideos] = useState<Video[]>([])
+  const [orgMemberships, setOrgMemberships] = useState<any[]>([])
+  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
+  const [selectedOrgName, setSelectedOrgName] = useState<string>("")
   const [loading, setLoading] = useState(true)
+  const [orgRowLoading, setOrgRowLoading] = useState(false)
 
   /* ---------------- HELPERS ---------------- */
 
@@ -41,7 +61,13 @@ const Home = () => {
       publicId: v.publicId,   // ✅ FIX
       title: v.title || v.aiTitle || "Untitled",
       aiTitle: v.aiTitle ?? undefined,
-      thumbnailKey: v.thumbnailKey
+      thumbnailKey: v.thumbnailKey,
+      uploaderAvatarKey: v.uploaderAvatarKey ?? undefined,
+      uploaderAvatarUrl: v.uploaderAvatarUrl ?? undefined,
+      uploaderName: v.uploaderName ?? undefined,
+      createdAt: v.createdAt ?? undefined,
+      orientation: v.orientation ?? null,
+      channel: v.channel ?? undefined
     }))
   }
 
@@ -49,16 +75,33 @@ const Home = () => {
 
   const fetchHomeData = useCallback(async () => {
     try {
-      const res = await api.get("/video")
+      const [res, orgRes] = await Promise.all([
+        api.get("/video"),
+        api.get("/organization/my")
+      ])
       const raw: RawVideo[] = res.data?.data || []
 
       const allVideos = normalize(raw)
+      const portraits = allVideos.filter(v => v.orientation === "PORTRAIT")
+      const landscapes = allVideos.filter(v => v.orientation !== "PORTRAIT")
 
       setVideos(allVideos)
+      setPortraitVideos(portraits)
+      setLandscapeVideos(landscapes)
 
-      setTrending(allVideos.slice(0, 12))
-      setRecommended(allVideos.slice(12, 24))
-      setContinueWatching(allVideos.slice(0, 8))
+      const memberships = (orgRes.data?.data?.memberships || []).filter((m: any) => m.status === "APPROVED")
+      setOrgMemberships(memberships)
+      const activeOrgId = orgRes.data?.data?.access?.activeOrganizationId ?? null
+      const defaultOrg =
+        memberships.find((m: any) => m.organization?.id === activeOrgId) ||
+        memberships[0]
+      if (defaultOrg?.organization?.id) {
+        setSelectedOrgId(defaultOrg.organization.id)
+        setSelectedOrgName(defaultOrg.organization.name || "Organization")
+      } else {
+        setSelectedOrgId(null)
+        setSelectedOrgName("")
+      }
 
     } catch (error) {
       console.error("Home page load error", error)
@@ -70,6 +113,37 @@ const Home = () => {
   useEffect(() => {
     fetchHomeData()
   }, [fetchHomeData])
+
+  const orgOptions = useMemo(
+    () =>
+      orgMemberships.map((m: any) => ({
+        id: m.organization?.id,
+        name: m.organization?.name || "Organization"
+      })).filter((o: any) => Number.isFinite(o.id)),
+    [orgMemberships]
+  )
+
+  const fetchOrgRow = useCallback(async (organizationId: number) => {
+    try {
+      setOrgRowLoading(true)
+      const res = await api.get(`/video/organization/${organizationId}`)
+      const raw: RawVideo[] = res.data?.data || []
+      setOrgVideos(normalize(raw))
+    } catch (err) {
+      console.error("Organization row load error", err)
+      setOrgVideos([])
+    } finally {
+      setOrgRowLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedOrgId) {
+      fetchOrgRow(selectedOrgId)
+    } else {
+      setOrgVideos([])
+    }
+  }, [selectedOrgId, fetchOrgRow])
 
   /* ---------------- UI ---------------- */
 
@@ -98,28 +172,51 @@ const Home = () => {
         ) : (
           <div className="space-y-10">
 
-            {continueWatching.length > 0 && (
+            {selectedOrgId && (
               <VideoRow
-                title="Continue Watching"
-                videos={continueWatching}
+                title={selectedOrgName ? `${selectedOrgName} Videos` : "Organization Videos"}
+                videos={orgVideos}
+                rightSlot={
+                  <div className="flex items-center gap-2">
+                    {orgRowLoading && (
+                      <span className="text-xs text-gray-400">Loading...</span>
+                    )}
+                    <select
+                      value={selectedOrgId}
+                      onChange={(e) => {
+                        const nextId = Number(e.target.value)
+                        const nextOrg = orgOptions.find((o: any) => o.id === nextId)
+                        setSelectedOrgId(nextId)
+                        setSelectedOrgName(nextOrg?.name || "Organization")
+                      }}
+                      className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs"
+                    >
+                      {orgOptions.map((org: any) => (
+                        <option key={org.id} value={org.id}>
+                          {org.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                }
               />
             )}
 
-            {trending.length > 0 && (
+            {landscapeVideos.length > 0 && (
               <VideoRow
-                title="🔥 Trending Now"
-                videos={trending}
+                title="🖥️ Landscape Videos"
+                videos={landscapeVideos}
               />
             )}
 
-            {recommended.length > 0 && (
+            {portraitVideos.length > 0 && (
               <VideoRow
-                title="🎯 Recommended For You"
-                videos={recommended}
+                title="📱 Portrait Videos"
+                videos={portraitVideos}
               />
             )}
 
-            {!trending.length && (
+            {!landscapeVideos.length && !portraitVideos.length && (
               <div className="text-center text-gray-400 py-20">
                 No videos available yet
               </div>

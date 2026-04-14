@@ -36,10 +36,6 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
         video?.title ||
         (video ? `Video #${video.publicId}` : "")
 
-    const description =
-        video?.aiDescription ||
-        "Watch this trending content now on SK Cinema."
-
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.load()
@@ -122,14 +118,6 @@ const HeroCard = ({ video, onPrev, onNext }: Props) => {
                 ">
                     {title}
                 </h1>
-
-                <p className="
-                    text-sm sm:text-base italic
-                    opacity-90 max-w-lg
-                    drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]
-                ">
-                    {description}
-                </p>
 
                 <button
                     onClick={() => navigate(`/video/${video.publicId}`)}

@@ -9,6 +9,11 @@ import OAuthSuccess from "@/pages/OAuthSuccess"
 import ResetPassword from "@/pages/ResetPassword"
 import FavouritesPage from "@/pages/FavouritesPage"
 import PlaylistPage from "@/pages/PlaylistPage"
+import SearchPage from "@/pages/Search"
+import PortraitPlayer from "@/pages/PortraitPlayer"
+import OrganizationDashboard from "@/pages/OrganizationDashboard"
+import OrganizationPage from "@/pages/OrganizationPage"
+import AdminDashboard from "@/pages/AdminDashboard"
 
 import MainLayout from "@/layouts/MainLayout"
 import ProtectedRoute from "@/routes/ProtectedRoute"
@@ -26,6 +31,22 @@ function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route path="/video/:publicId" element={<VideoPlayer />} />
+      <Route
+        path="/portrait/:publicId"
+        element={
+          <ProtectedRoute>
+            <PortraitPlayer />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/portrait"
+        element={
+          <ProtectedRoute>
+            <PortraitPlayer />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         element={
@@ -45,6 +66,10 @@ function App() {
 
         <Route path="/playlists" element={<PlaylistPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/organization" element={<OrganizationPage />} />
+        <Route path="/organization/dashboard" element={<OrganizationDashboard />} />
+        <Route path="/admin" element={<AdminDashboard />} />
 
       </Route>
 

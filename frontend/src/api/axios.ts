@@ -12,24 +12,22 @@ export const api = axios.create({
   withCredentials: true
 })
 
-api.interceptors.request.use((config) => {
+let inMemoryToken: string | null = null
 
-  const token = getToken()
-
+export const setAuthToken = (token: string | null) => {
+  inMemoryToken = token
   if (token) {
-    const headers = new AxiosHeaders(config.headers)
-    headers.set("Authorization", `Bearer ${token}`)
-    config.headers = headers
+    api.defaults.headers.common.Authorization = `Bearer ${token}`
+  } else {
+    delete api.defaults.headers.common.Authorization
   }
+}
 
-  return config
-})
+// Initialize once from storage on app boot
+setAuthToken(getToken())
 
 api.interceptors.request.use((config) => {
-
-  const token = getToken()
-
-  console.log("TOKEN BEING SENT:", token) // ✅ ADD HERE
+  const token = inMemoryToken || getToken()
 
   if (token) {
     const headers = new AxiosHeaders(config.headers)
