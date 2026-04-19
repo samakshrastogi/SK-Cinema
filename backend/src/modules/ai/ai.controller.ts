@@ -9,7 +9,7 @@ export const generateMetadataController = async (
     res: Response
 ) => {
     try {
-        const videoId = Number(req.params.videoId);
+        const videoId = req.params.videoId;
 
         if (!videoId) {
             return res.status(400).json({
@@ -32,7 +32,7 @@ export const applyAISuggestionController = async (
     res: Response
 ) => {
     try {
-        const videoId = Number(req.params.videoId);
+        const videoId = req.params.videoId;
 
         if (!videoId) {
             return res.status(400).json({

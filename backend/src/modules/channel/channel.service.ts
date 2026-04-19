@@ -26,7 +26,7 @@ export const generateUniqueChannelUsername = async (seed: string) => {
 }
 
 export const createChannel = async (
-    userId: number,
+    userId: string,
     name: string,
     username?: string,
     description?: string
@@ -69,7 +69,7 @@ export const createChannel = async (
     })
 }
 
-export const getMyChannel = async (userId: number) => {
+export const getMyChannel = async (userId: string) => {
     if (!userId) {
         throw new Error("Invalid user")
     }

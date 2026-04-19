@@ -9,7 +9,7 @@ import UserAvatar from "@/components/UserAvatar"
 import SharePopup from "@/components/SharePopup"
 
 interface VideoDetail {
-    id: number
+    id: string
     publicId: string
     title?: string
     aiTitle?: string
@@ -28,7 +28,7 @@ interface VideoDetail {
 }
 
 interface Comment {
-    id: number
+    id: string
     commentText: string
     username: string
     channelName?: string
@@ -36,7 +36,7 @@ interface Comment {
 }
 
 interface Playlist {
-    id: number
+    id: string
     name: string
 }
 
@@ -236,7 +236,7 @@ const PortraitPlayer = () => {
         await loadActions(activeVideo.publicId)
     }
 
-    const addVideoToPlaylist = async (playlistId: number) => {
+    const addVideoToPlaylist = async (playlistId: string) => {
         if (!activeVideo?.publicId) return
 
         await api.post("/video-actions/playlist", {

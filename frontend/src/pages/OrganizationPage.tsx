@@ -6,7 +6,7 @@ import { api } from "@/api/axios"
 
 // Types for organization membership and API errors
 interface Organization {
-    id: number;
+    id: string;
     name: string;
 }
 
@@ -14,7 +14,7 @@ type MembershipStatus = "APPROVED" | "PENDING";
 type MembershipRole = "ADMIN" | "MEMBER";
 
 interface Membership {
-    id: number;
+    id: string;
     organization: Organization;
     role: MembershipRole;
     status: MembershipStatus;
@@ -34,7 +34,7 @@ const OrganizationPage = () => {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
     const [memberships, setMemberships] = useState<Membership[]>([])
-    const [activeOrganizationId, setActiveOrganizationId] = useState<number | null>(null)
+    const [activeOrganizationId, setActiveOrganizationId] = useState<string | null>(null)
     const [name, setName] = useState("")
     const [slug, setSlug] = useState("")
     const [description, setDescription] = useState("")
@@ -191,7 +191,7 @@ const OrganizationPage = () => {
         }
     }
 
-    const switchMode = async (organizationId: number | null) => {
+    const switchMode = async (organizationId: string | null) => {
         await api.post("/organization/mode", { organizationId })
         await load()
         setMessage(organizationId ? "Organization mode enabled." : "Organization mode disabled.")

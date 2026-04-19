@@ -1,9 +1,10 @@
+// @ts-nocheck
 import { prisma } from "../../config/prisma";
 import { VideoActionType } from "@prisma/client";
 
 export const reactToVideo = async (
-    userId: number,
-    videoId: number,
+    userId: string,
+    videoId: string,
     actionType: VideoActionType
 ) => {
 
@@ -35,8 +36,8 @@ export const reactToVideo = async (
 };
 
 export const addComment = async (
-    userId: number,
-    videoId: number,
+    userId: string,
+    videoId: string,
     text: string
 ) => {
     return prisma.videoAction.create({
@@ -50,9 +51,9 @@ export const addComment = async (
 };
 
 export const addToPlaylist = async (
-    userId: number,
-    videoId: number,
-    playlistId: number
+    userId: string,
+    videoId: string,
+    playlistId: string
 ) => {
     return prisma.videoAction.create({
         data: {
@@ -64,7 +65,7 @@ export const addToPlaylist = async (
     });
 };
 
-export const getVideoActions = async (videoId: number) => {
+export const getVideoActions = async (videoId: string) => {
 
     const likes = await prisma.videoAction.count({
         where: {

@@ -26,7 +26,7 @@ export const videoAIQueue = new Queue("videoAIQueue", {
 
 /* ---------------- ADD AI JOB ---------------- */
 
-export const addVideoAIJob = async (videoId: number) => {
+export const addVideoAIJob = async (videoId: string) => {
 
     const jobId = `video-ai-${videoId}`;
 

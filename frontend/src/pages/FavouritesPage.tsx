@@ -4,7 +4,7 @@ import { api } from "@/api/axios"
 import VideoCard from "@/components/VideoCard"
 
 interface Video {
-    id: number
+    id: string
     publicId?: string
     title: string
     aiTitle?: string

@@ -6,7 +6,7 @@ import UserAvatar from "@/components/UserAvatar"
 import { api } from "@/api/axios"
 
 interface NotificationItem {
-    id: number
+    id: string
     title: string
     message: string
     link?: string | null
@@ -15,9 +15,9 @@ interface NotificationItem {
 }
 
 interface ActiveOrganizationLite {
-    id: number
+    id: string
     name: string
-    ownerId?: number
+    ownerId?: string
 }
 
 const Topbar = () => {

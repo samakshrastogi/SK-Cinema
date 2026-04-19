@@ -4,7 +4,7 @@ import { api } from "@/api/axios";
 import { useNavigate } from "react-router-dom";
 
 interface User {
-    id: number;
+    id: string;
     username: string;
     createdAt: string;
 }

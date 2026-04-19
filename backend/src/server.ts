@@ -66,12 +66,12 @@ queueEvents.on("progress", ({ data }) => {
 
 queueEvents.on("completed", ({ returnvalue }) => {
 
-  let videoId: number | null = null;
+  let videoId: string | null = null;
 
   if (returnvalue && typeof returnvalue === "object") {
-    const data = returnvalue as { videoId?: number };
+    const data = returnvalue as { videoId?: string };
 
-    if (typeof data.videoId === "number") {
+    if (typeof data.videoId === "string") {
       videoId = data.videoId;
     }
   }
@@ -88,7 +88,7 @@ queueEvents.on("failed", async ({ jobId }) => {
   try {
     const job = await videoAIQueue.getJob(jobId);
     const videoId =
-      typeof job?.data?.videoId === "number" ? job.data.videoId : null;
+      typeof job?.data?.videoId === "string" ? job.data.videoId : null;
 
     if (!videoId) return;
 

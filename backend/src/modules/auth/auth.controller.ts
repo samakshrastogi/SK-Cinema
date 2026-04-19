@@ -10,6 +10,7 @@ import {
 } from "./auth.service"
 
 const JWT_SECRET = process.env.JWT_SECRET as string
+const MONGO_OBJECT_ID_RE = /^[a-f\d]{24}$/i
 
 const handleError = (res: Response, error: any) => {
     const status = error.statusCode || 500
@@ -170,15 +171,24 @@ export const endSession = async (req: Request, res: Response) => {
         }
 
         const decoded = jwt.verify(token, JWT_SECRET) as unknown as {
-            sub: number
+            sub: string
             email: string
         }
 
+        const userId = String(decoded.sub || "")
+        const sessionId = String(loginId || "")
+        if (!MONGO_OBJECT_ID_RE.test(userId) || !MONGO_OBJECT_ID_RE.test(sessionId)) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid or expired token"
+            })
+        }
+
         const loginRow = await prisma.userLogin.findUnique({
-            where: { id: Number(loginId) }
+            where: { id: sessionId }
         })
 
-        if (!loginRow || loginRow.userId !== decoded.sub) {
+        if (!loginRow || loginRow.userId !== userId) {
             return res.status(404).json({
                 success: false,
                 message: "Login session not found"

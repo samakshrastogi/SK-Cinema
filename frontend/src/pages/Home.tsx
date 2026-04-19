@@ -47,7 +47,7 @@ const Home = () => {
   const [portraitVideos, setPortraitVideos] = useState<Video[]>([])
   const [orgVideos, setOrgVideos] = useState<Video[]>([])
   const [orgMemberships, setOrgMemberships] = useState<any[]>([])
-  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
   const [selectedOrgName, setSelectedOrgName] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [orgRowLoading, setOrgRowLoading] = useState(false)
@@ -119,11 +119,11 @@ const Home = () => {
       orgMemberships.map((m: any) => ({
         id: m.organization?.id,
         name: m.organization?.name || "Organization"
-      })).filter((o: any) => Number.isFinite(o.id)),
+      })).filter((o: any) => typeof o.id === "string" && o.id.length > 0),
     [orgMemberships]
   )
 
-  const fetchOrgRow = useCallback(async (organizationId: number) => {
+  const fetchOrgRow = useCallback(async (organizationId: string) => {
     try {
       setOrgRowLoading(true)
       const res = await api.get(`/video/organization/${organizationId}`)
@@ -184,7 +184,7 @@ const Home = () => {
                     <select
                       value={selectedOrgId}
                       onChange={(e) => {
-                        const nextId = Number(e.target.value)
+                        const nextId = e.target.value
                         const nextOrg = orgOptions.find((o: any) => o.id === nextId)
                         setSelectedOrgId(nextId)
                         setSelectedOrgName(nextOrg?.name || "Organization")

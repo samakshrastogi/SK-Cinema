@@ -6,7 +6,7 @@ import UserAvatar from "@/components/UserAvatar"
 
 export interface Video {
     publicId?: string
-    id?: number | string
+    id?: string
     title?: string
     aiTitle?: string
     thumbnailKey?: string

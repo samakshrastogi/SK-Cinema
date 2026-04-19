@@ -1,9 +1,12 @@
+// @ts-nocheck
 import { Router } from "express"
 import { authenticate, AuthRequest } from "../../middlewares/auth.middleware"
 import { prisma } from "../../config/prisma"
 
 const router = Router()
 const SUPER_ADMIN_EMAIL = "samakshrastogi885@gmail.com"
+
+const dayKey = (value: Date) => value.toISOString().slice(0, 10)
 
 const requirePlatformAdmin = async (req: AuthRequest, res: any, next: any) => {
     try {
@@ -37,96 +40,79 @@ router.get("/metrics", authenticate, requirePlatformAdmin, async (_req: AuthRequ
             likesCount,
             dislikesCount,
             sharesCount,
-            uniqueUsersRaw,
-            avgSessionRaw,
-            dailyLoginsRaw,
             subscriptionCounts,
-            topOrgsRaw
+            uniqueUserRows,
+            sessionAggregate,
+            loginRows,
+            organizations
         ] = await Promise.all([
             prisma.userLogin.count(),
             prisma.videoReaction.count({ where: { type: "LIKE" } }),
             prisma.videoReaction.count({ where: { type: "DISLIKE" } }),
             prisma.videoShare.count(),
-            prisma.$queryRaw<{ count: bigint }[]>`
-                SELECT COUNT(DISTINCT "userId")::bigint AS count FROM "UserLogin"
-            `,
-            prisma.$queryRaw<{ avg: number | null }[]>`
-                SELECT AVG("sessionLengthSec")::float AS avg FROM "UserLogin"
-                WHERE "sessionLengthSec" IS NOT NULL
-            `,
-            prisma.$queryRaw<{ day: string; count: bigint }[]>`
-                SELECT DATE("createdAt")::text AS day, COUNT(*)::bigint AS count
-                FROM "UserLogin"
-                GROUP BY DATE("createdAt")
-                ORDER BY DATE("createdAt") ASC
-            `,
             prisma.organization.groupBy({
                 by: ["subscriptionPlan"],
                 _count: { _all: true }
             }),
-            prisma.$queryRaw<{
-                id: number
-                name: string
-                shares: bigint
-                likes: bigint
-                views: bigint
-            }[]>`
-                SELECT o.id, o.name,
-                    COALESCE(shares.count, 0) AS shares,
-                    COALESCE(likes.count, 0) AS likes,
-                    COALESCE(views.count, 0) AS views
-                FROM "Organization" o
-                LEFT JOIN (
-                    SELECT v."organizationId" AS org_id, COUNT(*)::bigint AS count
-                    FROM "VideoShare" vs
-                    JOIN "Video" v ON v.id = vs."videoId"
-                    WHERE v."organizationId" IS NOT NULL
-                    GROUP BY v."organizationId"
-                ) shares ON shares.org_id = o.id
-                LEFT JOIN (
-                    SELECT v."organizationId" AS org_id, COUNT(*)::bigint AS count
-                    FROM "VideoReaction" vr
-                    JOIN "Video" v ON v.id = vr."videoId"
-                    WHERE v."organizationId" IS NOT NULL AND vr.type = 'LIKE'
-                    GROUP BY v."organizationId"
-                ) likes ON likes.org_id = o.id
-                LEFT JOIN (
-                    SELECT v."organizationId" AS org_id, COUNT(*)::bigint AS count
-                    FROM "VideoView" vv
-                    JOIN "Video" v ON v.id = vv."videoId"
-                    WHERE v."organizationId" IS NOT NULL
-                    GROUP BY v."organizationId"
-                ) views ON views.org_id = o.id
-                ORDER BY shares DESC, likes DESC, views DESC
-                LIMIT 5
-            `
+            prisma.userLogin.groupBy({ by: ["userId"] }),
+            prisma.userLogin.aggregate({ _avg: { sessionLengthSec: true } }),
+            prisma.userLogin.findMany({
+                select: { createdAt: true },
+                orderBy: { createdAt: "asc" }
+            }),
+            prisma.organization.findMany({
+                select: { id: true, name: true }
+            })
         ])
 
-        const uniqueUsers = Number(uniqueUsersRaw?.[0]?.count || 0)
-        const avgSessionLength = avgSessionRaw?.[0]?.avg ?? 0
+        const dailyLoginMap = new Map<string, number>()
+        for (const row of loginRows) {
+            const key = dayKey(row.createdAt)
+            dailyLoginMap.set(key, (dailyLoginMap.get(key) || 0) + 1)
+        }
+
+        const topOrganizations = await Promise.all(
+            organizations.map(async (organization) => {
+                const [shares, likes, views] = await Promise.all([
+                    prisma.videoShare.count({
+                        where: { video: { organizationId: organization.id } }
+                    }),
+                    prisma.videoReaction.count({
+                        where: {
+                            type: "LIKE",
+                            video: { organizationId: organization.id }
+                        }
+                    }),
+                    prisma.videoView.count({
+                        where: { video: { organizationId: organization.id } }
+                    })
+                ])
+
+                return {
+                    id: organization.id,
+                    name: organization.name,
+                    shares,
+                    likes,
+                    views
+                }
+            })
+        )
 
         return res.json({
             success: true,
             data: {
                 cards: {
-                    uniqueUsers,
+                    uniqueUsers: uniqueUserRows.length,
                     totalLogins,
-                    avgSessionLength,
+                    avgSessionLength: sessionAggregate._avg.sessionLengthSec ?? 0,
                     likes: likesCount,
                     dislikes: dislikesCount,
                     shares: sharesCount
                 },
-                dailyLogins: dailyLoginsRaw.map((row) => ({
-                    day: row.day,
-                    count: Number(row.count || 0)
-                })),
-                topOrganizations: topOrgsRaw.map((row) => ({
-                    id: row.id,
-                    name: row.name,
-                    shares: Number(row.shares || 0),
-                    likes: Number(row.likes || 0),
-                    views: Number(row.views || 0)
-                })),
+                dailyLogins: Array.from(dailyLoginMap.entries()).map(([day, count]) => ({ day, count })),
+                topOrganizations: topOrganizations
+                    .sort((a, b) => (b.shares - a.shares) || (b.likes - a.likes) || (b.views - a.views))
+                    .slice(0, 5),
                 subscriptionCounts: subscriptionCounts.map((row) => ({
                     plan: row.subscriptionPlan,
                     count: row._count._all

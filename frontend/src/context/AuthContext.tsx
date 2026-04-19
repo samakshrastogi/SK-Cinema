@@ -5,10 +5,10 @@ import {
     useState,
     useEffect,
 } from "react"
-import { setAuthToken } from "@/api/axios"
+import { clearStoredAuth, setAuthToken } from "@/api/axios"
 
 interface User {
-    id: number
+    id: string
     email: string
     username: string
     name?: string
@@ -21,10 +21,10 @@ interface User {
 interface AuthContextType {
     token: string | null
     user: User | null
-    loginId: number | null
-    login: (token: string, user: User, remember?: boolean, loginId?: number | null) => void
+    loginId: string | null
+    login: (token: string, user: User, remember?: boolean, loginId?: string | null) => void
     logout: () => void
-    setAuthFromOAuth: (token: string, user: User, loginId?: number | null) => void
+    setAuthFromOAuth: (token: string, user: User, loginId?: string | null) => void
     updateUser: (user: User) => void
     isAuthenticated: boolean
 }
@@ -69,9 +69,9 @@ export const AuthProvider = ({
 
     const [token, setToken] = useState<string | null>(getStoredToken())
     const [user, setUser] = useState<User | null>(getStoredUser())
-    const [loginId, setLoginId] = useState<number | null>(() => {
+    const [loginId, setLoginId] = useState<string | null>(() => {
         const stored = localStorage.getItem("loginId") || sessionStorage.getItem("loginId")
-        return stored ? Number(stored) : null
+        return stored || null
     })
 
     useEffect(() => {
@@ -96,7 +96,7 @@ export const AuthProvider = ({
             const durationSec = Math.max(0, Math.floor((Date.now() - Number(storedStart)) / 1000))
             const payload = JSON.stringify({
                 token: storedToken,
-                loginId: Number(storedLoginId),
+                loginId: storedLoginId,
                 durationSec
             })
 
@@ -114,7 +114,7 @@ export const AuthProvider = ({
         token: string,
         user: User,
         remember = false,
-        loginIdValue?: number | null
+        loginIdValue?: string | null
     ) => {
 
         const storage = remember ? localStorage : sessionStorage
@@ -134,7 +134,7 @@ export const AuthProvider = ({
 
     /* ---------------- GOOGLE OAUTH ---------------- */
 
-    const setAuthFromOAuth = (token: string, user: User, loginIdParam?: number | null) => {
+    const setAuthFromOAuth = (token: string, user: User, loginIdParam?: string | null) => {
 
         localStorage.setItem("token", token)
         localStorage.setItem("user", JSON.stringify(user))
@@ -188,16 +188,7 @@ export const AuthProvider = ({
             // ignore
         }
 
-        localStorage.removeItem("token")
-        localStorage.removeItem("user")
-        localStorage.removeItem("loginId")
-        localStorage.removeItem("sessionStart")
-
-        sessionStorage.removeItem("token")
-        sessionStorage.removeItem("user")
-        sessionStorage.removeItem("loginId")
-        sessionStorage.removeItem("sessionStart")
-
+        clearStoredAuth()
         setToken(null)
         setUser(null)
         setLoginId(null)

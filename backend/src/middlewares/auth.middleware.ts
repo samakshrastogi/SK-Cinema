@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken"
 import { prisma } from "../config/prisma"
 
 const JWT_SECRET = process.env.JWT_SECRET!
+const MONGO_OBJECT_ID_RE = /^[a-f\d]{24}$/i
 
 if (!JWT_SECRET) {
     throw new Error("JWT_SECRET not defined")
@@ -10,7 +11,7 @@ if (!JWT_SECRET) {
 
 export interface AuthRequest extends Request {
     user?: {
-        id: number
+        id: string
         email: string
     }
 }
@@ -40,17 +41,25 @@ export const authenticate = async (
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as unknown as {
-            sub: number
+            sub: string
             email: string
         }
 
+        const userId = String(decoded.sub || "")
+        if (!MONGO_OBJECT_ID_RE.test(userId)) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid or expired token"
+            })
+        }
+
         req.user = {
-            id: decoded.sub,
+            id: userId,
             email: decoded.email
         }
 
         const user = await prisma.user.findUnique({
-            where: { id: decoded.sub },
+            where: { id: userId },
             select: { isVerified: true }
         })
 

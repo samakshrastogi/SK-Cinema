@@ -3,11 +3,11 @@ import AppLayout from "@/layouts/AppLayout"
 import { api } from "@/api/axios"
 
 interface Membership {
-    id: number
+    id: string
     role: "ADMIN" | "MEMBER"
     status: "PENDING" | "APPROVED" | "REJECTED" | "LEFT"
     user: {
-        id: number
+        id: string
         name?: string
         email: string
     }
@@ -23,27 +23,27 @@ interface Video {
 
 interface Activity {
     views?: Array<{
-        id: number
+        id: string
         user?: { name?: string; email: string }
         video?: { title: string }
     }>
     likes?: Array<{
-        id: number
+        id: string
         user?: { name?: string; email: string }
         video?: { title: string }
     }>
     dislikes?: Array<{
-        id: number
+        id: string
         user?: { name?: string; email: string }
         video?: { title: string }
     }>
     shares?: Array<{
-        id: number
+        id: string
         user?: { name?: string; email: string }
         video?: { title: string }
     }>
     watchHistory?: Array<{
-        id: number
+        id: string
         user?: { name?: string; email: string }
         video?: { title: string }
         watchedSeconds: number
@@ -58,8 +58,8 @@ interface Totals {
 const OrganizationDashboard = () => {
     const [activeTab, setActiveTab] = useState<"views" | "likes" | "shares" | "watchHistory">("views")
     const [search, setSearch] = useState("")
-    const [orgId, setOrgId] = useState<number | null>(null)
-    const [ownerId, setOwnerId] = useState<number | null>(null)
+    const [orgId, setOrgId] = useState<string | null>(null)
+    const [ownerId, setOwnerId] = useState<string | null>(null)
     const [orgName, setOrgName] = useState("")
     const [allowPrivateContent, setAllowPrivateContent] = useState(false)
     const [restrictToOrgContent, setRestrictToOrgContent] = useState(false)
@@ -97,8 +97,8 @@ const OrganizationDashboard = () => {
     const loadAll = async () => {
         const my = await api.get("/organization/my")
         interface OrgInfo {
-            id: number
-            ownerId?: number
+            id: string
+            ownerId?: string
             name: string
             allowPrivateContent?: boolean
             allowPublicContent?: boolean
@@ -171,25 +171,25 @@ const OrganizationDashboard = () => {
         setTimeout(() => setSavedSettings(false), 2000)
     }
 
-    const approve = async (id: number) => {
+    const approve = async (id: string) => {
         await api.post(`/organization/membership/${id}/approve`)
         setMessage("Request approved.")
         await loadAll()
     }
 
-    const makeAdmin = async (id: number) => {
+    const makeAdmin = async (id: string) => {
         await api.post(`/organization/membership/${id}/role`, { role: "ADMIN" })
         setMessage("Member promoted to admin.")
         await loadAll()
     }
 
-    const removeAdmin = async (id: number) => {
+    const removeAdmin = async (id: string) => {
         await api.post(`/organization/membership/${id}/role`, { role: "MEMBER" })
         setMessage("Admin removed.")
         await loadAll()
     }
 
-    const removeMember = async (id: number) => {
+    const removeMember = async (id: string) => {
         await api.post(`/organization/membership/${id}/remove`)
         setMessage("Member removed.")
         await loadAll()

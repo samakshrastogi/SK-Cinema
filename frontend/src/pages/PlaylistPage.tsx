@@ -4,7 +4,7 @@ import AppLayout from "@/layouts/AppLayout"
 import { api } from "@/api/axios"
 
 interface Video {
-    id: number
+    id: string
     publicId?: string
     title?: string
     aiTitle?: string
@@ -17,7 +17,7 @@ interface Video {
 }
 
 interface Playlist {
-    id: number
+    id: string
     name: string
     videos: Video[]
 }

@@ -10,7 +10,7 @@ import UserAvatar from "@/components/UserAvatar"
 import SpritesheetPicker from "@/components/SpritesheetPicker"
 
 interface User {
-    id: number
+    id: string
     name?: string
     avatarUrl?: string
     avatarKey?: string
@@ -28,7 +28,7 @@ interface Stats {
 }
 
 interface Video {
-    id?: number
+    id?: string
     publicId: string
     title?: string
     aiTitle?: string
@@ -44,7 +44,7 @@ interface Video {
 }
 
 interface RawVideo {
-    id?: number
+    id?: string
     publicId: string
     title?: string
     aiTitle?: string
@@ -338,6 +338,11 @@ const ProfilePage = () => {
         return publicVideos
     }, [uploadVisibility, publicVideos, privateVideos, organizationVideos])
 
+    const ownUploadCount = useMemo(
+        () => publicVideos.length + privateVideos.length + organizationVideos.length,
+        [publicVideos.length, privateVideos.length, organizationVideos.length]
+    )
+
     const availableUploadTabs = useMemo(() => {
         const tabs: { key: "public" | "private" | "organization"; label: string }[] = []
         if (publicVideos.length > 0) tabs.push({ key: "public", label: "Public" })
@@ -436,7 +441,7 @@ const ProfilePage = () => {
 
                         {/* STATS */}
                         <div className="mt-5 flex gap-8 text-sm">
-                            <Stat label="Uploads" value={stats?.videos || 0} />
+                            <Stat label="Uploads" value={ownUploadCount} />
                             <Stat label="Favorites" value={stats?.favorites || 0} />
                             <Stat label="Playlists" value={stats?.playlists || 0} />
                         </div>

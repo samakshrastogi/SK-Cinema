@@ -8,7 +8,7 @@ import AppLayout from "@/layouts/AppLayout"
 import SpritesheetPicker from "@/components/SpritesheetPicker"
 
 interface Channel {
-    id: number
+    id: string
     name: string
     username: string
     description?: string
@@ -59,7 +59,7 @@ interface UploadItem {
     description: string
     tags: string
 
-    videoId?: number
+    videoId?: string
 }
 
 const socket = io(import.meta.env.VITE_SOCKET_URL, {
@@ -85,7 +85,7 @@ const Upload = () => {
     const [uploading, setUploading] = useState(false)
     const [globalVisibility, setGlobalVisibility] = useState<"PUBLIC" | "PRIVATE" | "ORGANIZATION">("PUBLIC")
 
-    const fetchAIMetadata = async (videoId: number | string) => {
+    const fetchAIMetadata = async (videoId: string) => {
         let lastError: unknown = null
 
         for (let attempt = 0; attempt < 5; attempt++) {
@@ -102,7 +102,7 @@ const Upload = () => {
         throw lastError
     }
 
-    const fetchSpritesheetMetadata = async (videoId: number | string) => {
+    const fetchSpritesheetMetadata = async (videoId: string) => {
         let lastError: unknown = null
 
         for (let attempt = 0; attempt < 20; attempt++) {

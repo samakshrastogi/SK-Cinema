@@ -36,7 +36,7 @@ const OAuthSuccess = () => {
                 setAuthFromOAuth(
                     token,
                     user,
-                    loginIdParam ? Number(loginIdParam) : null
+                    loginIdParam || null
                 )
 
                 navigate("/home", { replace: true })

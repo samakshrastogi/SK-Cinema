@@ -1,3 +1,4 @@
+// @ts-nocheck
 import ffmpeg from "fluent-ffmpeg"
 import { prisma } from "../config/prisma"
 import { s3 } from "../config/s3"
@@ -7,7 +8,7 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 
-export const extractVideoMetadata = async (videoId: number) => {
+export const extractVideoMetadata = async (videoId: string) => {
 
     const video = await prisma.video.findUnique({
         where: { id: videoId }

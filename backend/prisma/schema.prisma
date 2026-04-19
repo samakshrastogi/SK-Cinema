@@ -3,46 +3,36 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id Int @id @default(autoincrement())
-
-  email String @unique
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  email    String @unique
   username String? @unique
   password String?
-
   googleId String? @unique
-
-  name String? @db.VarChar(120)
-
+  name     String? @db.String
   avatarKey String?
-  coverKey String?
-
+  coverKey  String?
   provider AuthProvider @default(LOCAL)
-
   isVerified Boolean @default(false)
   platformAdmin Boolean @default(false)
-
   otp       String?
   otpExpiry DateTime?
-
   resetToken    String?
   resetTokenExp DateTime?
-
   createdAt DateTime @default(now())
-
-  channel       Channel?
+  channel Channel?
   s3Credentials S3Credential[]
-  videoActions  VideoAction[]
-  playlists     Playlist[]
-  views         VideoView[]
-  reactions     VideoReaction[]
-  comments      VideoComment[]
-  shares        VideoShare[]
-  watchHistory  WatchHistory[]
+  videoActions VideoAction[]
+  playlists Playlist[]
+  views VideoView[]
+  reactions VideoReaction[]
+  comments VideoComment[]
+  shares VideoShare[]
+  watchHistory WatchHistory[]
   subscriptions Subscription[] @relation("UserSubscriptions")
   organizationMemberships OrganizationMembership[]
   organizationInvitesSent OrganizationInvite[] @relation("InviteCreator")
@@ -51,62 +41,49 @@ model User {
   ownedOrganizations Organization[] @relation("OrganizationOwner")
   notifications Notification[]
   logins UserLogin[]
-  activeOrganizationId Int?
-  activeOrganization Organization? @relation("ActiveOrganization", fields: [activeOrganizationId], references: [id], onDelete: SetNull)
+  activeOrganizationId String? @db.ObjectId
+  activeOrganization Organization? @relation("ActiveOrganization", fields: [activeOrganizationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([name])
 }
 
 model UserLogin {
-  id Int @id @default(autoincrement())
-
-  userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
   method LoginMethod @default(LOCAL)
   sessionLengthSec Int?
-
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
 }
 
 model Channel {
-  id          Int      @id @default(autoincrement())
-  name        String
-  username    String   @unique
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
+  username String @unique
   description String?
-
-  userId Int  @unique
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  userId String @unique @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
   videos Video[]
   subscribers Subscription[] @relation("ChannelSubscribers")
-
   createdAt DateTime @default(now())
 }
 
-
 model Video {
-  id           Int          @id @default(autoincrement())
-
-  publicId     String       @unique @db.VarChar(12) // ✅ ADD THIS
-
-  title        String
-  s3Key        String       @unique
-  size         BigInt
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  publicId String @unique @db.String
+  title String
+  s3Key String @unique
+  size String
   thumbnailKey String?
-
   uploadSource UploadSource
-  status       UploadStatus @default(UPLOADING)
-
-  visibility   VideoVisibility @default(PUBLIC)
-
-  channelId Int
-  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  organizationId Int?
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-
+  status UploadStatus @default(UPLOADING)
+  visibility VideoVisibility @default(PUBLIC)
+  channelId String @db.ObjectId
+  channel Channel @relation(fields: [channelId], references: [id])
+  organizationId String? @db.ObjectId
+  organization Organization? @relation(fields: [organizationId], references: [id])
   aiData VideoAI?
   metadata VideoMetadata?
   videoActions VideoAction[]
@@ -115,24 +92,19 @@ model Video {
   comments VideoComment[]
   shares VideoShare[]
   watchHistory WatchHistory[]
-
   createdAt DateTime @default(now())
 
   @@index([channelId])
   @@index([visibility])
-  @@index([publicId]) // ✅ ADD THIS
   @@index([organizationId])
 }
 
 model VideoView {
-  id Int @id @default(autoincrement())
-
-  videoId Int
-  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  userId Int?
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  videoId String @db.ObjectId
+  video Video @relation(fields: [videoId], references: [id])
+  userId String? @db.ObjectId
+  user User? @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 
   @@index([videoId])
@@ -140,16 +112,12 @@ model VideoView {
 }
 
 model VideoReaction {
-  id Int @id @default(autoincrement())
-
-  userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  videoId Int
-  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
+  videoId String @db.ObjectId
+  video Video @relation(fields: [videoId], references: [id])
   type ReactionType
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -158,16 +126,12 @@ model VideoReaction {
 }
 
 model VideoComment {
-  id Int @id @default(autoincrement())
-
-  userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  videoId Int
-  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
+  videoId String @db.ObjectId
+  video Video @relation(fields: [videoId], references: [id])
   text String
-
   createdAt DateTime @default(now())
 
   @@index([videoId])
@@ -175,14 +139,11 @@ model VideoComment {
 }
 
 model VideoShare {
-  id Int @id @default(autoincrement())
-
-  userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  videoId Int
-  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
+  videoId String @db.ObjectId
+  video Video @relation(fields: [videoId], references: [id])
   method ShareMethod @default(COPY_LINK)
   createdAt DateTime @default(now())
 
@@ -191,14 +152,11 @@ model VideoShare {
 }
 
 model Subscription {
-  id Int @id @default(autoincrement())
-
-  subscriberId Int
-  subscriber User @relation("UserSubscriptions", fields: [subscriberId], references: [id], onDelete: Cascade)
-
-  channelId Int
-  channel Channel @relation("ChannelSubscribers", fields: [channelId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  subscriberId String @db.ObjectId
+  subscriber User @relation("UserSubscriptions", fields: [subscriberId], references: [id])
+  channelId String @db.ObjectId
+  channel Channel @relation("ChannelSubscribers", fields: [channelId], references: [id])
   createdAt DateTime @default(now())
 
   @@unique([subscriberId, channelId])
@@ -206,14 +164,11 @@ model Subscription {
 }
 
 model WatchHistory {
-  id Int @id @default(autoincrement())
-
-  userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  videoId Int
-  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
+  videoId String @db.ObjectId
+  video Video @relation(fields: [videoId], references: [id])
   watchedSeconds Int @default(0)
   lastPositionSeconds Int @default(0)
   lastWatchedAt DateTime @default(now())
@@ -226,53 +181,41 @@ model WatchHistory {
 }
 
 model Organization {
-  id Int @id @default(autoincrement())
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
   name String
   slug String @unique
   joinToken String @unique
   privateJoinToken String @unique
   description String?
-
-  ownerId Int
-  owner User @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-
+  ownerId String @db.ObjectId
+  owner User @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   allowedDomain String?
-
   allowPublicContent Boolean @default(true)
   allowPrivateContent Boolean @default(false)
-
   uploadPolicy OrganizationUploadPolicy @default(ADMINS_ONLY)
-
   trialStartAt DateTime @default(now())
   trialEndsAt DateTime
   billingStatus OrganizationBillingStatus @default(TRIAL_ACTIVE)
   subscriptionPlan OrganizationSubscriptionPlan @default(NONE)
   subscriptionEndsAt DateTime?
   blockedAt DateTime?
-
   members OrganizationMembership[]
   invites OrganizationInvite[]
   allowedUploaders OrganizationAllowedUploader[]
   videos Video[]
   activeUsers User[] @relation("ActiveOrganization")
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model OrganizationMembership {
-  id Int @id @default(autoincrement())
-
-  organizationId Int
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId String @db.ObjectId
+  organization Organization @relation(fields: [organizationId], references: [id])
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
   role OrganizationRole @default(MEMBER)
   status OrganizationMembershipStatus @default(PENDING)
-
   requestedAt DateTime @default(now())
   approvedAt DateTime?
   leftAt DateTime?
@@ -283,116 +226,87 @@ model OrganizationMembership {
 }
 
 model OrganizationInvite {
-  id Int @id @default(autoincrement())
-
-  organizationId Int
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId String @db.ObjectId
+  organization Organization @relation(fields: [organizationId], references: [id])
   email String
   status OrganizationInviteStatus @default(PENDING)
   token String @unique
   expiresAt DateTime
-
-  createdByUserId Int
-  createdBy User @relation("InviteCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
-
-  acceptedByUserId Int?
-  acceptedBy User? @relation("InviteAccepter", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
-
+  createdByUserId String @db.ObjectId
+  createdBy User @relation("InviteCreator", fields: [createdByUserId], references: [id])
+  acceptedByUserId String? @db.ObjectId
+  acceptedBy User? @relation("InviteAccepter", fields: [acceptedByUserId], references: [id])
   createdAt DateTime @default(now())
   acceptedAt DateTime?
 
   @@index([organizationId, email])
-  @@index([token])
 }
 
 model OrganizationAllowedUploader {
-  id Int @id @default(autoincrement())
-
-  organizationId Int
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId String @db.ObjectId
+  organization Organization @relation(fields: [organizationId], references: [id])
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 
   @@unique([organizationId, userId])
 }
 
 model Notification {
-  id Int @id @default(autoincrement())
-
-  userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
   title String
   message String
   link String?
   type NotificationType @default(GENERAL)
   isRead Boolean @default(false)
-
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, isRead])
 }
 
-
 model S3Credential {
-  id         Int      @id @default(autoincrement())
-  name       String
-  accessKey  String
-  secretKey  String
-  region     String?
-  endpoint   String?
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
+  accessKey String
+  secretKey String
+  region String?
+  endpoint String?
   bucketName String
-
-  userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 
   @@index([userId])
 }
 
 model VideoAI {
-  id Int @id @default(autoincrement())
-
-  videoId Int   @unique
-  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  videoId String @unique @db.ObjectId
+  video Video @relation(fields: [videoId], references: [id])
   transcript String?
-
   keywords String[]
-  tags     String[]
-
-  aiTitle       String?
+  tags String[]
+  aiTitle String?
   aiDescription String?
-
   status String @default("pending")
-
   createdAt DateTime @default(now())
 }
 
 model VideoAction {
-  id Int @id @default(autoincrement())
-
-  userId  Int
-  videoId Int
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  videoId String @db.ObjectId
   actionType VideoActionType
-
   commentText String?
-
-  playlistId Int?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  playlist Playlist? @relation(fields: [playlistId], references: [id], onDelete: SetNull)
-
+  playlistId String? @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
+  video Video @relation(fields: [videoId], references: [id])
+  playlist Playlist? @relation(fields: [playlistId], references: [id])
   createdAt DateTime @default(now())
 
   @@index([videoId])
@@ -401,44 +315,31 @@ model VideoAction {
 }
 
 model Playlist {
-  id Int @id @default(autoincrement())
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
   name String
-
-  userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  userId String @db.ObjectId
+  user User @relation(fields: [userId], references: [id])
   actions VideoAction[]
-
   createdAt DateTime @default(now())
 
   @@index([userId])
 }
 
 model VideoMetadata {
-  id Int @id @default(autoincrement())
-
-  videoId Int @unique
-  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  duration Int              // seconds
-  totalFrames Int?          // total frame count
-
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  videoId String @unique @db.ObjectId
+  video Video @relation(fields: [videoId], references: [id])
+  duration Int
+  totalFrames Int?
   width Int?
   height Int?
-
-  aspectRatio String?       // e.g. "16:9"
-  orientation Orientation?  // PORTRAIT / LANDSCAPE / SQUARE
-
+  aspectRatio String?
+  orientation Orientation?
   fps Float?
-
   hasAudio Boolean @default(false)
-
   videoCodec String?
   audioCodec String?
-
-  deviceInfo String?        // e.g. "iPhone 13", "Canon EOS 80D"
-
+  deviceInfo String?
   createdAt DateTime @default(now())
 }
 

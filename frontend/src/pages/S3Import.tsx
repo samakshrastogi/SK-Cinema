@@ -4,7 +4,7 @@ import AppLayout from "@/layouts/AppLayout";
 import axios from "axios";
 
 interface Bucket {
-    id: number;
+    id: string;
     name: string;
     bucketName: string;
     region?: string | null;

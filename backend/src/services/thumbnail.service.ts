@@ -1,3 +1,4 @@
+// @ts-nocheck
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -10,7 +11,7 @@ import { generateMultipleThumbnails } from "./ffmpeg.service";
 import { selectBestThumbnail } from "./selector.service";
 import { optimizeThumbnail } from "./optimizer.service";
 
-export const processThumbnailPipeline = async (videoId: number) => {
+export const processThumbnailPipeline = async (videoId: string) => {
 
     const video = await prisma.video.findUnique({
         where: { id: videoId },

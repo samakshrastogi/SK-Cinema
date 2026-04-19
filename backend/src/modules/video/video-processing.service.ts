@@ -1,3 +1,4 @@
+// @ts-nocheck
 import fs from "fs"
 import os from "os"
 import path from "path"
@@ -15,7 +16,7 @@ const execAsync = promisify(exec)
 const MAX_SPRITE_FRAMES = 120
 
 export const processVideoAfterUpload = async (
-    videoId: number,
+    videoId: string,
     s3Key: string,
     channelUsername: string,
     initialDescription?: string

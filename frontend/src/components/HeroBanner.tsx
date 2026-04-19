@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
 interface Video {
-    id: number;
+    id: string;
     title: string;
     aiTitle?: string;
     aiDescription?: string;

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react"
 import axios from "axios"
 
 type Props = {
-    videoId: number
+    videoId: string
 }
 type AISuggestionData = {
     title?: string

@@ -9,14 +9,14 @@ interface ApiResponse<T = unknown> {
 export interface LoginData {
     token: string
     user: {
-        id: number
+        id: string
         email: string
         username: string
         name?: string
         avatarKey?: string
         platformAdmin?: boolean
     }
-    loginId?: number
+    loginId?: string
 }
 
 export const registerUser = async (

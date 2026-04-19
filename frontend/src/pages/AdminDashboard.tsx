@@ -15,7 +15,7 @@ interface Metrics {
         shares: number
     }
     dailyLogins: { day: string; count: number }[]
-    topOrganizations: { id: number; name: string; shares: number; likes: number; views: number }[]
+    topOrganizations: { id: string; name: string; shares: number; likes: number; views: number }[]
     subscriptionCounts: { plan: string; count: number }[]
 }
 

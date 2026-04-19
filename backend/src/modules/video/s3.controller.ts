@@ -63,7 +63,7 @@ export const scanBucket = async (req: any, res: Response) => {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
-        const files = await scanUserBucket(Number(id), userId);
+        const files = await scanUserBucket(id, userId);
 
         res.json(files);
 
@@ -95,7 +95,7 @@ export const importVideo = async (req: any, res: Response) => {
         }
 
         const video = await importVideoFromUserBucket(
-            Number(credentialId),
+            String(credentialId),
             userId,
             sourceKey,
             visibility,
