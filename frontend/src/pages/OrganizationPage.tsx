@@ -8,7 +8,6 @@ import { api } from "@/api/axios"
 interface Organization {
     id: number;
     name: string;
-    // Add more fields as needed
 }
 
 type MembershipStatus = "APPROVED" | "PENDING";
@@ -43,6 +42,8 @@ const OrganizationPage = () => {
     const [message, setMessage] = useState("")
     const [linkInfo, setLinkInfo] = useState<{ name: string; linkType: "PUBLIC" | "PRIVATE" } | null>(null)
     const [linkJoining, setLinkJoining] = useState(false)
+    const [createdLinks, setCreatedLinks] = useState<{ publicLink: string; privateLink: string } | null>(null)
+    const [copiedLinkType, setCopiedLinkType] = useState<"public" | "private" | null>(null)
     const [plan, setPlan] = useState("TRIAL_FREE")
     const handledInviteToken = useRef<string | null>(null)
 
@@ -122,17 +123,33 @@ const OrganizationPage = () => {
 
     const createOrganization = async () => {
         if (!name.trim()) return
-        await api.post("/organization", {
+        const res = await api.post("/organization", {
             name: name.trim(),
             slug: slug.trim() || undefined,
             description: description.trim() || undefined,
             plan
+        })
+        setCreatedLinks({
+            publicLink: res.data?.links?.publicLink || "",
+            privateLink: res.data?.links?.privateLink || ""
         })
         setName("")
         setSlug("")
         setDescription("")
         await load()
         setMessage("Organization created.")
+    }
+
+    const copyCreatedLink = async (link: string, type: "public" | "private") => {
+        if (!link) return
+
+        try {
+            await navigator.clipboard.writeText(link)
+            setCopiedLinkType(type)
+            setTimeout(() => setCopiedLinkType(null), 2000)
+        } catch {
+            setMessage("Failed to copy join link.")
+        }
     }
 
     const requestJoin = async () => {
@@ -263,6 +280,47 @@ const OrganizationPage = () => {
                             </p>
                         </div>
 
+                        {createdLinks && (
+                            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                                <p className="text-sm font-medium text-white">
+                                    Organization join links
+                                </p>
+                                <div className="space-y-2">
+                                    <div className="flex flex-col gap-2 sm:flex-row">
+                                        <input
+                                            value={createdLinks.publicLink}
+                                            readOnly
+                                            aria-label="created public organization link"
+                                            className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm"
+                                        />
+                                        <button
+                                            onClick={() => copyCreatedLink(createdLinks.publicLink, "public")}
+                                            className="rounded-lg bg-emerald-600 hover:bg-emerald-500 transition px-3 py-2 text-xs font-medium shadow-md"
+                                        >
+                                            {copiedLinkType === "public" ? "Copied!" : "Copy Public"}
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-col gap-2 sm:flex-row">
+                                        <input
+                                            value={createdLinks.privateLink}
+                                            readOnly
+                                            aria-label="created private organization link"
+                                            className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm"
+                                        />
+                                        <button
+                                            onClick={() => copyCreatedLink(createdLinks.privateLink, "private")}
+                                            className="rounded-lg bg-amber-600 hover:bg-amber-500 transition px-3 py-2 text-xs font-medium shadow-md"
+                                        >
+                                            {copiedLinkType === "private" ? "Copied!" : "Copy Private"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-400">
+                                    Public link joins immediately. Private link sends an approval request to admins.
+                                </p>
+                            </div>
+                        )}
+
                         {/* INPUTS */}
                         <div className="space-y-3">
 
@@ -318,7 +376,7 @@ const OrganizationPage = () => {
                         <div>
                             <h2 className="text-lg font-semibold text-white">Join Organization</h2>
                             <p className="text-xs text-gray-400 mt-1">
-                                Enter an organization slug or ID to request access.
+                                Enter an organization slug, ID, or public/private join link.
                             </p>
                         </div>
 
@@ -327,7 +385,7 @@ const OrganizationPage = () => {
                             <input
                                 value={joinInput}
                                 onChange={(e) => setJoinInput(e.target.value)}
-                                placeholder="Organization slug or ID"
+                                placeholder="Organization slug, ID, or join link"
                                 className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
                             />
                         </div>
@@ -342,7 +400,7 @@ const OrganizationPage = () => {
 
                         {/* INFO */}
                         <p className="text-xs text-gray-400">
-                            Requests remain pending until approved (except public organization links).
+                            Public links join instantly. Private links stay pending until an admin approves them.
                         </p>
                     </div>
 

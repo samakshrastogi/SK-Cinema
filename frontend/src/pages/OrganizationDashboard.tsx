@@ -77,6 +77,7 @@ const OrganizationDashboard = () => {
     const [organizationPublicLink, setOrganizationPublicLink] = useState("")
     const [organizationPrivateLink, setOrganizationPrivateLink] = useState("")
     const [copiedType, setCopiedType] = useState<string | null>(null)
+    const [savedSettings, setSavedSettings] = useState(false)
 
     const approvedMembers = useMemo(() =>
         memberships.filter(
@@ -166,6 +167,8 @@ const OrganizationDashboard = () => {
             allowedUploaderUserIds
         })
         setMessage("Organization settings updated.")
+        setSavedSettings(true)
+        setTimeout(() => setSavedSettings(false), 2000)
     }
 
     const approve = async (id: number) => {
@@ -348,10 +351,10 @@ const OrganizationDashboard = () => {
                                     className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm tracking-wide"
                                 />
                                 <button
-                                    onClick={() => copyLink(organizationPublicLink, "Public link copied")}
+                                    onClick={() => copyLink(organizationPublicLink, "public")}
                                     className="rounded-lg bg-emerald-600 hover:bg-emerald-500 transition px-3 py-2 text-xs font-medium shadow"
                                 >
-                                    Copy
+                                    {copiedType === "public" ? "Copied!" : "Copy"}
                                 </button>
                             </div>
                         </div>
@@ -371,10 +374,10 @@ const OrganizationDashboard = () => {
                                     className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm tracking-wide"
                                 />
                                 <button
-                                    onClick={() => copyLink(organizationPrivateLink, "Private link copied")}
+                                    onClick={() => copyLink(organizationPrivateLink, "private")}
                                     className="rounded-lg bg-amber-600 hover:bg-amber-500 transition px-3 py-2 text-xs font-medium shadow"
                                 >
-                                    Copy
+                                    {copiedType === "private" ? "Copied!" : "Copy"}
                                 </button>
                             </div>
                         </div>
@@ -550,7 +553,7 @@ const OrganizationDashboard = () => {
                             onClick={saveSettings}
                             className="w-full rounded-lg bg-purple-600 hover:bg-purple-500 transition px-4 py-2 text-sm font-medium shadow-md active:scale-95"
                         >
-                            Save Settings
+                            {savedSettings ? "Saved!" : "Save Settings"}
                         </button>
                     </div>
 

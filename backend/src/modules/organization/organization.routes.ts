@@ -22,6 +22,32 @@ const addMonths = (date: Date, months: number) => {
     return copy
 }
 
+const buildOrganizationShareLinks = (organization: {
+    joinToken: string
+    privateJoinToken: string
+}) => ({
+    publicLink: `${CLIENT_URL}/organization?orgToken=${organization.joinToken}`,
+    privateLink: `${CLIENT_URL}/organization?orgToken=${organization.privateJoinToken}`
+})
+
+const extractOrganizationJoinToken = (value: string) => {
+    const normalized = String(value || "").trim()
+    if (!normalized) return null
+
+    try {
+        const parsed = new URL(normalized)
+        const token =
+            parsed.searchParams.get("orgToken") ||
+            parsed.searchParams.get("org") ||
+            parsed.pathname.split("/").filter(Boolean).at(-1)
+
+        if (!token || token === "organization") return null
+        return token.trim()
+    } catch {
+        return null
+    }
+}
+
 const createOrgNotification = async (
     userId: number,
     title: string,
@@ -137,6 +163,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
         return res.status(201).json({
             success: true,
             data: organization,
+            links: buildOrganizationShareLinks(organization),
             pricingNote:
                 requestedPlan === "TRIAL_FREE"
                     ? "3 month free trial selected"
@@ -253,14 +280,23 @@ const handleJoinRequest = async (req: AuthRequest, res: any) => {
     try {
         if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-        const slugOrId = String(req.body?.organization || "").trim()
-        if (!slugOrId) {
+        const organizationInput = String(req.body?.organization || req.body?.organizationLink || "").trim()
+        if (!organizationInput) {
             return res.status(400).json({ success: false, message: "Organization is required" })
         }
 
-        const organization = Number.isFinite(Number(slugOrId))
-            ? await prisma.organization.findUnique({ where: { id: Number(slugOrId) } })
-            : await prisma.organization.findUnique({ where: { slug: normalizeOrganizationSlug(slugOrId) } })
+        const joinToken = extractOrganizationJoinToken(organizationInput)
+        const organization = joinToken
+            ? await prisma.organization.findFirst({
+                  where: {
+                      OR: [{ joinToken }, { privateJoinToken: joinToken }]
+                  }
+              })
+            : Number.isFinite(Number(organizationInput))
+              ? await prisma.organization.findUnique({ where: { id: Number(organizationInput) } })
+              : await prisma.organization.findUnique({
+                    where: { slug: normalizeOrganizationSlug(organizationInput) }
+                })
 
         if (!organization) {
             return res.status(404).json({ success: false, message: "Organization not found" })
@@ -285,7 +321,8 @@ const handleJoinRequest = async (req: AuthRequest, res: any) => {
             Boolean(organization.allowedDomain) &&
             domain === organization.allowedDomain?.toLowerCase()
 
-        const autoApprove = Boolean(invite || domainApproved)
+        const publicLinkApproved = Boolean(joinToken && organization.joinToken === joinToken)
+        const autoApprove = Boolean(invite || domainApproved || publicLinkApproved)
         const status = autoApprove ? "APPROVED" : "PENDING"
 
         const membership = await prisma.organizationMembership.upsert({
@@ -329,7 +366,12 @@ const handleJoinRequest = async (req: AuthRequest, res: any) => {
 
         return res.json({
             success: true,
-            message: status === "APPROVED" ? "Joined organization" : "Join request submitted",
+            message:
+                status === "APPROVED"
+                    ? publicLinkApproved
+                        ? "Joined organization via public link"
+                        : "Joined organization"
+                    : "Join request submitted",
             data: membership
         })
     } catch (error: any) {
@@ -1150,8 +1192,7 @@ router.get("/:organizationId/share-link", authenticate, async (req: AuthRequest,
 
         if (!organization) return res.status(404).json({ success: false, message: "Organization not found" })
 
-        const publicLink = `${CLIENT_URL}/organization?orgToken=${organization.joinToken}`
-        const privateLink = `${CLIENT_URL}/organization?orgToken=${organization.privateJoinToken}`
+        const { publicLink, privateLink } = buildOrganizationShareLinks(organization)
         return res.json({
             success: true,
             data: {
