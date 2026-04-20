@@ -8,19 +8,22 @@ import { redisConnection } from "../config/redis"
 export const thumbnailQueue = new Queue(
     "thumbnailQueue",
     {
-        connection: redisConnection as any
+        connection: redisConnection as any,
+        skipVersionCheck: true
     }
 )
 export const videoAIQueue = new Queue(
     "videoAIQueue",
     {
-        connection: redisConnection as any
+        connection: redisConnection as any,
+        skipVersionCheck: true
     }
 )
 export const videoMetadataQueue = new Queue(
     "videoMetadataQueue",
     {
-        connection: redisConnection as any
+        connection: redisConnection as any,
+        skipVersionCheck: true
     }
 )
 

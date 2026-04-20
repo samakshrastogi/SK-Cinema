@@ -8,6 +8,17 @@ const slugify = (value: string) =>
         .replace(/^-+|-+$/g, "")
         .slice(0, 24)
 
+const buildChannelNameSuggestions = (name: string) => {
+    const base = name.trim().replace(/\s+/g, " ")
+    const compact = base.replace(/\s+/g, "")
+    const suffixes = ["Official", "Studio", "Hub", "Cinema", "Now"]
+    return suffixes
+        .map((suffix) => `${base} ${suffix}`.trim())
+        .concat(compact && compact !== base ? [`${compact} Channel`] : [])
+        .filter(Boolean)
+        .slice(0, 5)
+}
+
 export const generateUniqueChannelUsername = async (seed: string) => {
     const base = slugify(seed) || `channel-${Date.now()}`
     let candidate = base
@@ -45,6 +56,24 @@ export const createChannel = async (
 
     if (existingChannel) {
         throw new Error("You already have a channel")
+    }
+
+    const takenName = await prisma.channel.findFirst({
+        where: {
+            name: {
+                equals: name.trim(),
+                mode: "insensitive"
+            }
+        },
+        select: { id: true }
+    })
+
+    if (takenName) {
+        const error = new Error("Your channel name is taken by another user.") as Error & {
+            suggestions?: string[]
+        }
+        error.suggestions = buildChannelNameSuggestions(name)
+        throw error
     }
 
     const normalizedUsername = username?.trim().toLowerCase()

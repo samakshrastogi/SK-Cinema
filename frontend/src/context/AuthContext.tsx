@@ -108,6 +108,22 @@ export const AuthProvider = ({
         return () => window.removeEventListener("beforeunload", handleUnload)
     }, [])
 
+    useEffect(() => {
+        const handleAuthExpired = () => {
+            clearStoredAuth()
+            setToken(null)
+            setUser(null)
+            setLoginId(null)
+
+            if (window.location.pathname !== "/login") {
+                window.location.href = "/login"
+            }
+        }
+
+        window.addEventListener("auth:expired", handleAuthExpired)
+        return () => window.removeEventListener("auth:expired", handleAuthExpired)
+    }, [])
+
     /* ---------------- LOGIN ---------------- */
 
     const login = (

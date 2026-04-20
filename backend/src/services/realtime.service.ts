@@ -22,3 +22,8 @@ export const emitNewVideoUploaded = (payload: {
         createdAt: new Date().toISOString()
     })
 }
+
+export const emitProcessingEvent = (event: string, payload: Record<string, unknown>) => {
+    if (!ioRef) return
+    ioRef.emit(event, payload)
+}

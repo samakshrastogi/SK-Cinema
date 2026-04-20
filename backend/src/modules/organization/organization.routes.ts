@@ -70,6 +70,63 @@ const createOrgNotification = async (
     })
 }
 
+const notifyOrganizationAdminsForJoinRequest = async (
+    organizationId: string,
+    organizationName: string,
+    requester: { name?: string | null; email?: string | null; channelName?: string | null; channelUsername?: string | null }
+) => {
+    const admins = await prisma.organizationMembership.findMany({
+        where: {
+            organizationId,
+            status: "APPROVED",
+            role: "ADMIN"
+        },
+        select: { userId: true }
+    })
+
+    await Promise.all(
+        admins.map((admin) =>
+            createOrgNotification(
+                admin.userId,
+                "Organization Join Request",
+                `${requester.channelName || requester.name || requester.email || "A user"} (${requester.channelUsername ? `@${requester.channelUsername}` : requester.email || "no email"}) is waiting for approval to join ${organizationName}.`,
+                "/organization/dashboard",
+                "GENERAL"
+            )
+        )
+    )
+}
+
+const resolveUserByEmailOrChannelName = async (value: string) => {
+    const normalized = String(value || "").trim()
+    if (!normalized) return null
+
+    const lowered = normalized.toLowerCase()
+
+    const byEmail = await prisma.user.findUnique({
+        where: { email: lowered },
+        include: { channel: true }
+    })
+
+    if (byEmail) return byEmail
+
+    const byChannel = await prisma.channel.findFirst({
+        where: {
+            OR: [
+                { name: { equals: normalized, mode: "insensitive" } },
+                { username: { equals: lowered, mode: "insensitive" } }
+            ]
+        },
+        include: {
+            user: {
+                include: { channel: true }
+            }
+        }
+    })
+
+    return byChannel?.user || null
+}
+
 const ensureOrganizationTokens = async (organizationId: string) => {
     const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
@@ -199,8 +256,13 @@ router.get("/my", authenticate, async (req: AuthRequest, res) => {
                         ownerId: true,
                         description: true,
                         allowPublicContent: true,
-                        allowPrivateContent: true,
+                        restrictContentForAdmins: true,
                         uploadPolicy: true,
+                        allowedUploaders: {
+                            select: {
+                                userId: true
+                            }
+                        },
                         trialEndsAt: true,
                         subscriptionEndsAt: true,
                         billingStatus: true,
@@ -306,7 +368,17 @@ const handleJoinRequest = async (req: AuthRequest, res: any) => {
             return res.status(404).json({ success: false, message: "Organization not found" })
         }
 
-        const user = await prisma.user.findUnique({ where: { id: req.user.id } })
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            include: {
+                channel: {
+                    select: {
+                        name: true,
+                        username: true
+                    }
+                }
+            }
+        })
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" })
         }
@@ -365,6 +437,13 @@ const handleJoinRequest = async (req: AuthRequest, res: any) => {
             await prisma.user.update({
                 where: { id: req.user.id },
                 data: { activeOrganizationId: organization.id }
+            })
+        } else {
+            await notifyOrganizationAdminsForJoinRequest(organization.id, organization.name, {
+                name: user.name,
+                email: user.email,
+                channelName: user.channel?.name,
+                channelUsername: user.channel?.username
             })
         }
 
@@ -544,6 +623,11 @@ router.post("/join-by-link", authenticate, async (req: AuthRequest, res) => {
                 "/organization",
                 "GENERAL"
             )
+            const user = await prisma.user.findUnique({
+                where: { id: req.user.id },
+                select: { name: true, email: true }
+            })
+            await notifyOrganizationAdminsForJoinRequest(resolved.id, resolved.name, user || {})
         }
 
         return res.json({
@@ -669,12 +753,15 @@ router.post("/invite", authenticate, async (req: AuthRequest, res) => {
         if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" })
 
         const organizationId = normalizeId(req.body?.organizationId)
-        const email = String(req.body?.email || "").trim().toLowerCase()
-        if (!organizationId || !email) {
-            return res.status(400).json({ success: false, message: "organizationId and email are required" })
+        const identifier = String(req.body?.email || req.body?.identifier || "").trim()
+        if (!organizationId || !identifier) {
+            return res.status(400).json({ success: false, message: "organizationId and user email or channel name are required" })
         }
 
         await requireOrganizationAdmin(req.user.id, organizationId)
+
+        const resolvedUser = await resolveUserByEmailOrChannelName(identifier)
+        const email = resolvedUser?.email?.toLowerCase() || identifier.toLowerCase()
 
         const existingPendingInvite = await prisma.organizationInvite.findFirst({
             where: {
@@ -709,12 +796,12 @@ router.post("/invite", authenticate, async (req: AuthRequest, res) => {
             console.error("Failed to send invite email", err)
         })
 
-        const invitedUser = await prisma.user.findUnique({ where: { email } })
+        const invitedUser = resolvedUser || await prisma.user.findUnique({ where: { email } })
         if (invitedUser) {
             await createOrgNotification(
                 invitedUser.id,
                 "Organization Invitation",
-                `You were invited to join ${organization?.name || "an organization"}.`,
+                `You were invited to join ${organization?.name || "an organization"} by ${req.user.email}. The invite link expires in 24 hours.`,
                 `/organization?token=${invite.token}`,
                 "ORG_INVITE"
             )
@@ -733,7 +820,14 @@ router.post("/membership/:id/approve", authenticate, async (req: AuthRequest, re
         const id = normalizeId(req.params.id)
         if (!id) return res.status(400).json({ success: false, message: "Invalid membership id" })
 
-        const membership = await prisma.organizationMembership.findUnique({ where: { id } })
+        const membership = await prisma.organizationMembership.findUnique({
+            where: { id },
+            include: {
+                organization: {
+                    select: { name: true }
+                }
+            }
+        })
         if (!membership) return res.status(404).json({ success: false, message: "Membership not found" })
 
         await requireOrganizationAdmin(req.user.id, membership.organizationId)
@@ -755,7 +849,7 @@ router.post("/membership/:id/approve", authenticate, async (req: AuthRequest, re
         await createOrgNotification(
             approved.userId,
             "Organization Access Approved",
-            "Your join request has been approved by organization admin. Organization mode is now enabled.",
+            `Your request to join ${membership.organization?.name || "the organization"} was approved. Organization mode is now enabled.`,
             "/organization",
             "ORG_APPROVED"
         )
@@ -763,6 +857,68 @@ router.post("/membership/:id/approve", authenticate, async (req: AuthRequest, re
         return res.json({ success: true, data: approved })
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error.message || "Failed to approve membership" })
+    }
+})
+
+router.post("/membership/approve-all", authenticate, async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+        const organizationId = normalizeId(req.body?.organizationId)
+        if (!organizationId) {
+            return res.status(400).json({ success: false, message: "organizationId is required" })
+        }
+
+        await requireOrganizationAdmin(req.user.id, organizationId)
+
+        const organization = await prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: { name: true }
+        })
+
+        const pendingMemberships = await prisma.organizationMembership.findMany({
+            where: {
+                organizationId,
+                status: "PENDING"
+            }
+        })
+
+        if (!pendingMemberships.length) {
+            return res.json({ success: true, updated: 0 })
+        }
+
+        await prisma.organizationMembership.updateMany({
+            where: {
+                organizationId,
+                status: "PENDING"
+            },
+            data: {
+                status: "APPROVED",
+                approvedAt: new Date(),
+                leftAt: null
+            }
+        })
+
+        await Promise.all(
+            pendingMemberships.map(async (membership) => {
+                await prisma.user.update({
+                    where: { id: membership.userId },
+                    data: { activeOrganizationId: organizationId }
+                })
+
+                await createOrgNotification(
+                    membership.userId,
+                    "Organization Access Approved",
+                    `Your request to join ${organization?.name || "the organization"} was approved. Organization mode is now enabled.`,
+                    "/organization",
+                    "ORG_APPROVED"
+                )
+            })
+        )
+
+        return res.json({ success: true, updated: pendingMemberships.length })
+    } catch (error: any) {
+        return res.status(500).json({ success: false, message: error.message || "Failed to approve all memberships" })
     }
 })
 
@@ -826,14 +982,14 @@ router.post("/membership/promote-by-email", authenticate, async (req: AuthReques
         if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" })
 
         const organizationId = normalizeId(req.body?.organizationId)
-        const email = String(req.body?.email || "").trim().toLowerCase()
-        if (!organizationId || !email) {
-            return res.status(400).json({ success: false, message: "organizationId and email are required" })
+        const identifier = String(req.body?.email || req.body?.identifier || "").trim()
+        if (!organizationId || !identifier) {
+            return res.status(400).json({ success: false, message: "organizationId and user email or channel name are required" })
         }
 
         await requireOrganizationAdmin(req.user.id, organizationId)
 
-        const user = await prisma.user.findUnique({ where: { email } })
+        const user = await resolveUserByEmailOrChannelName(identifier)
         if (!user) return res.status(404).json({ success: false, message: "User not found" })
 
         const membership = await prisma.organizationMembership.findUnique({
@@ -841,6 +997,11 @@ router.post("/membership/promote-by-email", authenticate, async (req: AuthReques
                 organizationId_userId: {
                     organizationId,
                     userId: user.id
+                }
+            },
+            include: {
+                organization: {
+                    select: { name: true }
                 }
             }
         })
@@ -857,7 +1018,7 @@ router.post("/membership/promote-by-email", authenticate, async (req: AuthReques
         await createOrgNotification(
             user.id,
             "Organization Role Updated",
-            "You were promoted to organization admin.",
+            `You were promoted to admin in ${membership.organization?.name || "the organization"}.`,
             "/organization",
             "ORG_APPROVED"
         )
@@ -876,7 +1037,15 @@ router.post("/membership/:id/remove", authenticate, async (req: AuthRequest, res
         if (!id) return res.status(400).json({ success: false, message: "Invalid membership id" })
 
         const membership = await prisma.organizationMembership.findUnique({
-            where: { id }
+            where: { id },
+            include: {
+                organization: {
+                    select: { name: true }
+                },
+                user: {
+                    select: { id: true }
+                }
+            }
         })
 
         if (!membership) return res.status(404).json({ success: false, message: "Membership not found" })
@@ -932,6 +1101,14 @@ router.post("/membership/:id/remove", authenticate, async (req: AuthRequest, res
             })
         }
 
+        await createOrgNotification(
+            membership.user.id,
+            "Organization Access Removed",
+            `Your access to ${membership.organization?.name || "the organization"} was removed by an admin.`,
+            "/organization",
+            "GENERAL"
+        )
+
         return res.json({ success: true })
     } catch (error: any) {
         return res.status(500).json({ success: false, message: error.message || "Failed to remove member" })
@@ -955,6 +1132,9 @@ router.post("/settings", authenticate, async (req: AuthRequest, res) => {
         }
         if (typeof req.body?.allowPrivateContent === "boolean") {
             updateData.allowPrivateContent = req.body.allowPrivateContent
+        }
+        if (typeof req.body?.restrictContentForAdmins === "boolean") {
+            updateData.restrictContentForAdmins = req.body.restrictContentForAdmins
         }
         if (typeof req.body?.allowedDomain === "string") {
             updateData.allowedDomain = req.body.allowedDomain.trim().toLowerCase() || null
@@ -1058,19 +1238,23 @@ router.get("/dashboard/:organizationId", authenticate, async (req: AuthRequest, 
             }),
             prisma.videoView.findMany({
                 where: { video: { organizationId } },
-                include: { user: { select: { id: true, name: true, email: true } }, video: { select: { id: true, publicId: true, title: true } } }
+                include: { user: { select: { id: true, name: true, email: true } }, video: { select: { id: true, publicId: true, title: true } } },
+                orderBy: { createdAt: "asc" }
             }),
             prisma.videoReaction.findMany({
                 where: { video: { organizationId }, type: "LIKE" },
-                include: { user: { select: { id: true, name: true, email: true } }, video: { select: { id: true, publicId: true, title: true } } }
+                include: { user: { select: { id: true, name: true, email: true } }, video: { select: { id: true, publicId: true, title: true } } },
+                orderBy: { createdAt: "asc" }
             }),
             prisma.videoReaction.findMany({
                 where: { video: { organizationId }, type: "DISLIKE" },
-                include: { user: { select: { id: true, name: true, email: true } }, video: { select: { id: true, publicId: true, title: true } } }
+                include: { user: { select: { id: true, name: true, email: true } }, video: { select: { id: true, publicId: true, title: true } } },
+                orderBy: { createdAt: "asc" }
             }),
             prisma.videoShare.findMany({
                 where: { video: { organizationId } },
-                include: { user: { select: { id: true, name: true, email: true } }, video: { select: { id: true, publicId: true, title: true } } }
+                include: { user: { select: { id: true, name: true, email: true } }, video: { select: { id: true, publicId: true, title: true } } },
+                orderBy: { createdAt: "asc" }
             }),
             prisma.watchHistory.findMany({
                 where: { video: { organizationId } },
@@ -1159,7 +1343,27 @@ router.get("/:organizationId/members", authenticate, async (req: AuthRequest, re
                         select: {
                             id: true,
                             name: true,
-                            email: true
+                            email: true,
+                            username: true,
+                            avatarKey: true,
+                            createdAt: true,
+                            isVerified: true,
+                            provider: true,
+                            channel: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    username: true,
+                                    description: true,
+                                    createdAt: true,
+                                    _count: {
+                                        select: {
+                                            videos: true,
+                                            subscribers: true
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 },

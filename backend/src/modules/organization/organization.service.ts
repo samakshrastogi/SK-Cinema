@@ -93,14 +93,18 @@ export const getOrganizationAccessContext = async (
             membership.role === "ADMIN" || (org.allowedUploaders?.length ?? 0) > 0
     }
 
+    const isAdmin = membership.role === "ADMIN"
+    const restrictContentForAdmins = org.restrictContentForAdmins !== false
+    const adminCanSeeAllContent = isAdmin && !restrictContentForAdmins
+
     return {
         activeOrganizationId: org.id,
         membershipRole: membership.role as "ADMIN" | "MEMBER",
-        canSeePublic: org.allowPublicContent,
+        canSeePublic: org.allowPublicContent || adminCanSeeAllContent,
         canSeePrivate: org.allowPrivateContent,
         canSeeOrganization: true,
         canUpload,
-        restrictToAdminUploads: !org.allowPublicContent
+        restrictToAdminUploads: !org.allowPublicContent && !adminCanSeeAllContent
     }
 }
 

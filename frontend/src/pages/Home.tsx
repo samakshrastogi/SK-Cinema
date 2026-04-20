@@ -17,6 +17,7 @@ interface Video {
   uploaderName?: string
   createdAt?: string
   orientation?: "PORTRAIT" | "LANDSCAPE" | "SQUARE" | null
+  visibility?: "PUBLIC" | "PRIVATE" | "ORGANIZATION"
   channel?: {
     name?: string
   }
@@ -33,9 +34,23 @@ interface RawVideo {
   uploaderName?: string
   createdAt?: string
   orientation?: "PORTRAIT" | "LANDSCAPE" | "SQUARE" | null
+  visibility?: "PUBLIC" | "PRIVATE" | "ORGANIZATION"
   channel?: {
     name?: string
   }
+}
+
+interface OrganizationMembership {
+  status: string
+  organization?: {
+    id?: string
+    name?: string
+  }
+}
+
+interface OrganizationOption {
+  id: string
+  name: string
 }
 
 /* ---------------- COMPONENT ---------------- */
@@ -46,7 +61,7 @@ const Home = () => {
   const [landscapeVideos, setLandscapeVideos] = useState<Video[]>([])
   const [portraitVideos, setPortraitVideos] = useState<Video[]>([])
   const [orgVideos, setOrgVideos] = useState<Video[]>([])
-  const [orgMemberships, setOrgMemberships] = useState<any[]>([])
+  const [orgMemberships, setOrgMemberships] = useState<OrganizationMembership[]>([])
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
   const [selectedOrgName, setSelectedOrgName] = useState<string>("")
   const [loading, setLoading] = useState(true)
@@ -67,6 +82,7 @@ const Home = () => {
       uploaderName: v.uploaderName ?? undefined,
       createdAt: v.createdAt ?? undefined,
       orientation: v.orientation ?? null,
+      visibility: v.visibility,
       channel: v.channel ?? undefined
     }))
   }
@@ -82,19 +98,20 @@ const Home = () => {
       const raw: RawVideo[] = res.data?.data || []
 
       const allVideos = normalize(raw)
-      const portraits = allVideos.filter(v => v.orientation === "PORTRAIT")
-      const landscapes = allVideos.filter(v => v.orientation !== "PORTRAIT")
+      const publicVideos = allVideos.filter(v => !v.visibility || v.visibility === "PUBLIC")
+      const portraits = publicVideos.filter(v => v.orientation === "PORTRAIT")
+      const landscapes = publicVideos.filter(v => v.orientation !== "PORTRAIT")
 
       setVideos(allVideos)
       setPortraitVideos(portraits)
       setLandscapeVideos(landscapes)
 
-      const memberships = (orgRes.data?.data?.memberships || []).filter((m: any) => m.status === "APPROVED")
+      const memberships = ((orgRes.data?.data?.memberships || []) as OrganizationMembership[]).filter((m) => m.status === "APPROVED")
       setOrgMemberships(memberships)
       const activeOrgId = orgRes.data?.data?.access?.activeOrganizationId ?? null
-      const defaultOrg =
-        memberships.find((m: any) => m.organization?.id === activeOrgId) ||
-        memberships[0]
+      const defaultOrg = activeOrgId
+        ? memberships.find((m) => m.organization?.id === activeOrgId)
+        : null
       if (defaultOrg?.organization?.id) {
         setSelectedOrgId(defaultOrg.organization.id)
         setSelectedOrgName(defaultOrg.organization.name || "Organization")
@@ -116,10 +133,10 @@ const Home = () => {
 
   const orgOptions = useMemo(
     () =>
-      orgMemberships.map((m: any) => ({
+      orgMemberships.map((m) => ({
         id: m.organization?.id,
         name: m.organization?.name || "Organization"
-      })).filter((o: any) => typeof o.id === "string" && o.id.length > 0),
+      })).filter((o): o is OrganizationOption => typeof o.id === "string" && o.id.length > 0),
     [orgMemberships]
   )
 
@@ -185,13 +202,13 @@ const Home = () => {
                       value={selectedOrgId}
                       onChange={(e) => {
                         const nextId = e.target.value
-                        const nextOrg = orgOptions.find((o: any) => o.id === nextId)
+                        const nextOrg = orgOptions.find((o) => o.id === nextId)
                         setSelectedOrgId(nextId)
                         setSelectedOrgName(nextOrg?.name || "Organization")
                       }}
                       className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs"
                     >
-                      {orgOptions.map((org: any) => (
+                      {orgOptions.map((org) => (
                         <option key={org.id} value={org.id}>
                           {org.name}
                         </option>
@@ -203,20 +220,20 @@ const Home = () => {
             )}
 
             {landscapeVideos.length > 0 && (
-              <VideoRow
-                title="🖥️ Landscape Videos"
+                <VideoRow
+                title="Featured Stories"
                 videos={landscapeVideos}
               />
             )}
 
             {portraitVideos.length > 0 && (
               <VideoRow
-                title="📱 Portrait Videos"
+                title="Short-form Stories"
                 videos={portraitVideos}
               />
             )}
 
-            {!landscapeVideos.length && !portraitVideos.length && (
+            {!selectedOrgId && !landscapeVideos.length && !portraitVideos.length && (
               <div className="text-center text-gray-400 py-20">
                 No videos available yet
               </div>

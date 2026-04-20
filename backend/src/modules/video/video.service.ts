@@ -79,6 +79,13 @@ export const generatePresignedUrl = async (
     return { uploadUrl, key }
 }
 
+const filenameFromS3Key = (key: string) => {
+    const rawName = key.split("/").pop() || "Untitled"
+    const withoutTimestamp = rawName.replace(/^\d+_/, "")
+    const withoutExtension = withoutTimestamp.replace(/\.[^.]+$/, "")
+    return withoutExtension.replace(/[_-]+/g, " ").trim() || "Untitled"
+}
+
 export const generateThumbnailPresignedUrl = async (
     userId: string,
     fileName: string,
@@ -150,11 +157,15 @@ export const completeUpload = async (
         visibility ||
         (orgAccess.activeOrganizationId ? "ORGANIZATION" : "PUBLIC")
 
+    const fallbackTitle = filenameFromS3Key(key)
+    const submittedTitle = (title ?? "").trim()
+    const submittedDescription = (description ?? "").trim()
+
     const video = await prisma.video.create({
         data: {
             publicId: nanoid(10), // ✅ ADD THIS
 
-            title: (title ?? "").trim(),
+            title: submittedTitle || fallbackTitle,
             s3Key: key,
             size: String(size),
             thumbnailKey: thumbnailKey || null,
@@ -170,12 +181,12 @@ export const completeUpload = async (
         video.id,
         key,
         user.channel.username,
-        description
+        submittedDescription || fallbackTitle
     )
 
     emitNewVideoUploaded({
         publicId: video.publicId,
-        title: video.title?.trim() || "Untitled",
+        title: video.title?.trim() || fallbackTitle,
         uploaderName: user.name || user.channel.name
     })
 
@@ -329,18 +340,17 @@ export const getAllVideos = async (userId?: string) => {
         createdAt: video.createdAt,
         thumbnailKey: video.thumbnailKey,
         orientation: video.metadata?.orientation ?? null,
+        visibility: video.visibility,
         signedUrl: signCloudFrontUrl(video.s3Key),
         size: video.size
     }))
 }
 
 export const getPortraitVideos = async (userId?: string) => {
-    const visibilityWhere = await buildVisibilityWhere(userId)
-
     const videos = await prisma.video.findMany({
         where: {
             status: "UPLOADED",
-            ...visibilityWhere,
+            visibility: "PUBLIC",
             metadata: {
                 is: {
                     orientation: "PORTRAIT"
@@ -386,6 +396,7 @@ export const getPortraitVideos = async (userId?: string) => {
         createdAt: video.createdAt,
         thumbnailKey: video.thumbnailKey,
         orientation: video.metadata?.orientation ?? null,
+        visibility: video.visibility,
         signedUrl: signCloudFrontUrl(video.s3Key),
         size: video.size
     }))
@@ -489,52 +500,58 @@ export const searchVideos = async (query: string, userId?: string) => {
 
     const videos = await prisma.video.findMany({
         where: {
-            status: "UPLOADED",
-            ...visibilityWhere,
-            OR: [
+            AND: [
                 {
-                    title: {
-                        contains: q,
-                        mode: "insensitive"
-                    }
+                    status: "UPLOADED",
+                    ...visibilityWhere
                 },
                 {
-                    aiData: {
-                        is: {
-                            aiTitle: {
+                    OR: [
+                        {
+                            title: {
                                 contains: q,
                                 mode: "insensitive"
                             }
-                        }
-                    }
-                },
-                {
-                    aiData: {
-                        is: {
-                            aiDescription: {
-                                contains: q,
-                                mode: "insensitive"
+                        },
+                        {
+                            aiData: {
+                                is: {
+                                    aiTitle: {
+                                        contains: q,
+                                        mode: "insensitive"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            aiData: {
+                                is: {
+                                    aiDescription: {
+                                        contains: q,
+                                        mode: "insensitive"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            aiData: {
+                                is: {
+                                    keywords: {
+                                        hasSome: terms
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            aiData: {
+                                is: {
+                                    tags: {
+                                        hasSome: terms
+                                    }
+                                }
                             }
                         }
-                    }
-                },
-                {
-                    aiData: {
-                        is: {
-                            keywords: {
-                                hasSome: terms
-                            }
-                        }
-                    }
-                },
-                {
-                    aiData: {
-                        is: {
-                            tags: {
-                                hasSome: terms
-                            }
-                        }
-                    }
+                    ]
                 }
             ]
         },
@@ -760,7 +777,7 @@ const getOwnedVideo = async (userId: string, videoId: string) => {
 export const getUploadSpritesheet = async (userId: string, videoId: string) => {
     const video = await getOwnedVideo(userId, videoId)
 
-    const spritesheetKey = `${video.channel.username}/spritesheets/${video.id}/sheet.jpg`
+    const spritesheetKey = `${video.channel.username}/spritesheets/${video.id}/sheet.webp`
     const metaKey = `${video.channel.username}/spritesheets/${video.id}/meta.json`
 
     const metaObject = await s3.send(
@@ -787,7 +804,7 @@ export const saveThumbnailFromSpritesheet = async (
 ) => {
     const video = await getOwnedVideo(userId, videoId)
 
-    const spritesheetKey = `${video.channel.username}/spritesheets/${video.id}/sheet.jpg`
+    const spritesheetKey = `${video.channel.username}/spritesheets/${video.id}/sheet.webp`
     const metaKey = `${video.channel.username}/spritesheets/${video.id}/meta.json`
 
     const metaObject = await s3.send(
@@ -809,7 +826,7 @@ export const saveThumbnailFromSpritesheet = async (
     const x = col * meta.frameWidth
     const y = row * meta.frameHeight
 
-    const tempSheetPath = path.join(os.tmpdir(), `sheet_${videoId}_${Date.now()}.jpg`)
+    const tempSheetPath = path.join(os.tmpdir(), `sheet_${videoId}_${Date.now()}.webp`)
     const tempThumbPath = path.join(os.tmpdir(), `sprite_thumb_${videoId}_${Date.now()}.jpg`)
 
     try {

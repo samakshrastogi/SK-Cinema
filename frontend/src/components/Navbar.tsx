@@ -35,7 +35,7 @@ const Navbar = () => {
         };
 
         fetchUser();
-    }, []);
+    }, [logout, navigate]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

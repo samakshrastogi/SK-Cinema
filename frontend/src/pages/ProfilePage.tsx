@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import axios from "axios"
 
@@ -88,7 +88,7 @@ interface EditModalProps {
 
 const ProfilePage = () => {
     const navigate = useNavigate()
-    const { updateUser, user: authUser } = useAuth()
+    const { user: authUser } = useAuth()
 
     const [user, setUser] = useState<User | null>(null)
     const [stats, setStats] = useState<Stats | null>(null)
@@ -138,13 +138,12 @@ const ProfilePage = () => {
         }))
     }
 
-    const fetchProfile = async () => {
+    const fetchProfile = useCallback(async () => {
         try {
             const res = await api.get("/user/me")
             const data = res.data?.data || {}
 
             setUser(data.user || null)
-            updateUser(data.user || null)
 
             setStats(data.stats || null)
             setHistory(normalizeVideos(data.history))
@@ -170,11 +169,11 @@ const ProfilePage = () => {
         } finally {
             setLoading(false)
         }
-    }
+    }, [])
 
     useEffect(() => {
-        fetchProfile()
-    }, [])
+        void fetchProfile()
+    }, [fetchProfile])
 
     const saveProfile = async () => {
         try {
@@ -386,7 +385,7 @@ const ProfilePage = () => {
                     </div>
 
                     {/* PROFILE INFO */}
-                    <div className="relative -mt-16 px-4 sm:px-6 z-10">
+                    <div className="relative -mt-20 sm:-mt-24 px-4 sm:px-6 z-10">
 
                         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
 
@@ -394,7 +393,7 @@ const ProfilePage = () => {
                             <div className="flex items-end gap-4">
 
                                 {/* AVATAR */}
-                                <label className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-black overflow-hidden cursor-pointer bg-black/40 shadow-xl">
+                                <label className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-full border-4 border-black overflow-hidden cursor-pointer bg-black/40 shadow-xl">
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -411,7 +410,7 @@ const ProfilePage = () => {
                                         avatarUrl={user?.avatarUrl}
                                         avatarKey={user?.avatarKey}
                                         alt={user?.name || "User avatar"}
-                                        className="w-full h-full text-xl"
+                                        className="w-full h-full text-3xl sm:text-4xl"
                                     />
 
                                     <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition flex items-center justify-center text-xs">

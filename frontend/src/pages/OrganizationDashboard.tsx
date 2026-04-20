@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { Info } from "lucide-react"
 import AppLayout from "@/layouts/AppLayout"
 import { api } from "@/api/axios"
 
@@ -6,10 +7,28 @@ interface Membership {
     id: string
     role: "ADMIN" | "MEMBER"
     status: "PENDING" | "APPROVED" | "REJECTED" | "LEFT"
+    requestedAt?: string
+    approvedAt?: string
     user: {
         id: string
         name?: string
         email: string
+        username?: string
+        avatarKey?: string
+        createdAt?: string
+        isVerified?: boolean
+        provider?: string
+        channel?: {
+            id: string
+            name: string
+            username: string
+            description?: string
+            createdAt?: string
+            _count?: {
+                videos: number
+                subscribers: number
+            }
+        }
     }
 }
 
@@ -24,21 +43,25 @@ interface Video {
 interface Activity {
     views?: Array<{
         id: string
+        createdAt?: string
         user?: { name?: string; email: string }
         video?: { title: string }
     }>
     likes?: Array<{
         id: string
+        createdAt?: string
         user?: { name?: string; email: string }
         video?: { title: string }
     }>
     dislikes?: Array<{
         id: string
+        createdAt?: string
         user?: { name?: string; email: string }
         video?: { title: string }
     }>
     shares?: Array<{
         id: string
+        createdAt?: string
         user?: { name?: string; email: string }
         video?: { title: string }
     }>
@@ -51,21 +74,30 @@ interface Activity {
     }>
 }
 
+interface ChartSeries {
+    label: string
+    values: number[]
+}
+
 interface Totals {
     [key: string]: string | number
 }
 
+interface AllowedUploaderRow {
+    userId: string
+}
+
 const OrganizationDashboard = () => {
-    const [activeTab, setActiveTab] = useState<"views" | "likes" | "shares" | "watchHistory">("views")
     const [search, setSearch] = useState("")
     const [orgId, setOrgId] = useState<string | null>(null)
     const [ownerId, setOwnerId] = useState<string | null>(null)
     const [orgName, setOrgName] = useState("")
-    const [allowPrivateContent, setAllowPrivateContent] = useState(false)
     const [restrictToOrgContent, setRestrictToOrgContent] = useState(false)
+    const [restrictContentForAdmins, setRestrictContentForAdmins] = useState(true)
     const [allowedDomain, setAllowedDomain] = useState("")
     const [uploadPolicy, setUploadPolicy] = useState("ADMINS_ONLY")
-    const [allowedUploaderInput, setAllowedUploaderInput] = useState("")
+    const [allowedUploaderQuery, setAllowedUploaderQuery] = useState("")
+    const [allowedUploaderUserIds, setAllowedUploaderUserIds] = useState<string[]>([])
     const [inviteEmail, setInviteEmail] = useState("")
     const [memberships, setMemberships] = useState<Membership[]>([])
     const [topVideos, setTopVideos] = useState<Video[]>([])
@@ -78,12 +110,13 @@ const OrganizationDashboard = () => {
     const [organizationPrivateLink, setOrganizationPrivateLink] = useState("")
     const [copiedType, setCopiedType] = useState<string | null>(null)
     const [savedSettings, setSavedSettings] = useState(false)
+    const [selectedMember, setSelectedMember] = useState<Membership | null>(null)
 
     const approvedMembers = useMemo(() =>
         memberships.filter(
             (m) =>
                 m.status === "APPROVED" &&
-                (m.user.name || m.user.email)
+                `${m.user.name || ""} ${m.user.email || ""} ${m.user.channel?.name || ""} ${m.user.channel?.username || ""}`
                     .toLowerCase()
                     .includes(search.toLowerCase())
         ),
@@ -92,6 +125,70 @@ const OrganizationDashboard = () => {
         () => memberships.filter((m) => m.status === "PENDING"),
         [memberships]
     )
+    const allowedUploaderOptions = useMemo(
+        () =>
+            memberships.filter((m) => m.status === "APPROVED").filter((m) =>
+                `${m.user.name || ""} ${m.user.email || ""} ${m.user.channel?.name || ""} ${m.user.channel?.username || ""}`
+                    .toLowerCase()
+                    .includes(allowedUploaderQuery.toLowerCase())
+            ),
+        [memberships, allowedUploaderQuery]
+    )
+    const graphSeries = useMemo(() => {
+        const normalizeDate = (value?: string) => {
+            if (!value) return "Unknown"
+            const date = new Date(value)
+            if (Number.isNaN(date.getTime())) return "Unknown"
+            return date.toISOString().slice(0, 10)
+        }
+
+        const buildSeries = (
+            items: Array<{ createdAt?: string; video?: { title?: string } }>,
+            labelPrefix?: string
+        ) => {
+            const dateSet = new Set<string>()
+            const seriesMap = new Map<string, Map<string, number>>()
+
+            items.forEach((item) => {
+                const date = normalizeDate(item.createdAt)
+                const label = labelPrefix || item.video?.title || "Unknown"
+                dateSet.add(date)
+                if (!seriesMap.has(label)) {
+                    seriesMap.set(label, new Map())
+                }
+                const dateCounts = seriesMap.get(label)!
+                dateCounts.set(date, (dateCounts.get(date) || 0) + 1)
+            })
+
+            const dates = Array.from(dateSet).sort().slice(-7)
+            const series = Array.from(seriesMap.entries())
+                .map(([label, values]) => ({
+                    label,
+                    values: dates.map((date) => values.get(date) || 0)
+                }))
+                .sort((a, b) =>
+                    b.values.reduce((sum, value) => sum + value, 0) -
+                    a.values.reduce((sum, value) => sum + value, 0)
+                )
+                .slice(0, 4)
+
+            return { dates, series }
+        }
+
+        const source = activity || {}
+        const views = buildSeries(source.views || [])
+        const shares = buildSeries(source.shares || [])
+        const engagement = buildSeries(
+            [
+                ...(source.likes || []).map((item) => ({ ...item, video: { title: "Likes" } })),
+                ...(source.dislikes || []).map((item) => ({ ...item, video: { title: "Dislikes" } })),
+                ...(source.shares || []).map((item) => ({ ...item, video: { title: "Shares" } })),
+                ...(source.views || []).map((item) => ({ ...item, video: { title: "Views" } }))
+            ]
+        )
+
+        return { views, shares, engagement }
+    }, [activity])
 
 
     const loadAll = async () => {
@@ -100,15 +197,24 @@ const OrganizationDashboard = () => {
             id: string
             ownerId?: string
             name: string
-            allowPrivateContent?: boolean
             allowPublicContent?: boolean
+            restrictContentForAdmins?: boolean
             allowedDomain?: string
             uploadPolicy?: string
+            allowedUploaders?: Array<{ userId: string }>
         }
         const myMemberships: Array<{ status: string; role: string; organization?: OrgInfo }> = my.data?.data?.memberships || []
-        const adminMembership = myMemberships.find(
-            (m) => m.status === "APPROVED" && m.role === "ADMIN"
-        )
+        const activeOrgId = my.data?.data?.access?.activeOrganizationId ?? null
+        const adminMembership =
+            myMemberships.find(
+                (m) =>
+                    m.status === "APPROVED" &&
+                    m.role === "ADMIN" &&
+                    m.organization?.id === activeOrgId
+            ) ||
+            myMemberships.find(
+                (m) => m.status === "APPROVED" && m.role === "ADMIN"
+            )
 
         if (!adminMembership?.organization?.id) {
             setMessage("You are not an organization admin.")
@@ -119,8 +225,8 @@ const OrganizationDashboard = () => {
         setOrgId(id)
         setOwnerId(adminMembership.organization.ownerId || null)
         setOrgName(adminMembership.organization.name)
-        setAllowPrivateContent(Boolean(adminMembership.organization.allowPrivateContent))
         setRestrictToOrgContent(!adminMembership.organization.allowPublicContent)
+        setRestrictContentForAdmins(adminMembership.organization.restrictContentForAdmins !== false)
         setAllowedDomain(adminMembership.organization.allowedDomain || "")
         setUploadPolicy(adminMembership.organization.uploadPolicy || "ADMINS_ONLY")
 
@@ -136,6 +242,9 @@ const OrganizationDashboard = () => {
         setTotals(dashRes.data?.data?.totals || null)
         setOrganizationPublicLink(linkRes.data?.data?.publicLink || "")
         setOrganizationPrivateLink(linkRes.data?.data?.privateLink || "")
+        setAllowedUploaderUserIds(
+            ((myMemberships.find((m) => m.organization?.id === id)?.organization?.allowedUploaders || []) as AllowedUploaderRow[]).map((row) => row.userId)
+        )
     }
 
     useEffect(() => {
@@ -153,15 +262,11 @@ const OrganizationDashboard = () => {
 
     const saveSettings = async () => {
         if (!orgId) return
-        const allowedUploaderUserIds = allowedUploaderInput
-            .split(",")
-            .map((x) => Number(x.trim()))
-            .filter((x) => Number.isFinite(x) && x > 0)
 
         await api.post("/organization/settings", {
             organizationId: orgId,
             allowPublicContent: !restrictToOrgContent,
-            allowPrivateContent,
+            restrictContentForAdmins,
             allowedDomain,
             uploadPolicy,
             allowedUploaderUserIds
@@ -174,6 +279,15 @@ const OrganizationDashboard = () => {
     const approve = async (id: string) => {
         await api.post(`/organization/membership/${id}/approve`)
         setMessage("Request approved.")
+        await loadAll()
+    }
+
+    const approveAll = async () => {
+        if (!orgId) return
+        const res = await api.post("/organization/membership/approve-all", {
+            organizationId: orgId
+        })
+        setMessage(`${res.data?.updated || 0} requests approved.`)
         await loadAll()
     }
 
@@ -199,22 +313,22 @@ const OrganizationDashboard = () => {
         if (!orgId || !promoteEmail.trim()) return
         await api.post("/organization/membership/promote-by-email", {
             organizationId: orgId,
-            email: promoteEmail.trim().toLowerCase()
+            identifier: promoteEmail.trim()
         })
         setPromoteEmail("")
         await loadAll()
-        setMessage("User promoted to admin by email.")
+        setMessage("User promoted to admin.")
     }
 
     const invite = async () => {
         if (!orgId || !inviteEmail.trim()) return
         const res = await api.post("/organization/invite", {
             organizationId: orgId,
-            email: inviteEmail.trim().toLowerCase()
+            identifier: inviteEmail.trim()
         })
         setLatestInviteLink(res.data?.data?.inviteLink || "")
         setInviteEmail("")
-        setMessage("Invite created and sent to email. Link expires in 24 hours.")
+        setMessage("Invite created and sent. Link expires in 24 hours.")
     }
 
     const copyLink = async (link: string, type: string) => {
@@ -391,18 +505,18 @@ const OrganizationDashboard = () => {
                         <div>
                             <h2 className="text-lg font-semibold text-white">Invite & Manage Access</h2>
                             <p className="text-xs text-gray-400 mt-1">
-                                Invite users via email or promote members to admin roles.
+                                Invite users via email or channel name, and promote members to admin roles.
                             </p>
                         </div>
 
                         {/* INVITE */}
                         <div className="space-y-2">
-                            <label className="text-xs text-gray-400">Invite by Email</label>
+                            <label className="text-xs text-gray-400">Invite by Email or Channel Name</label>
                             <div className="flex flex-col gap-2 sm:flex-row">
                                 <input
                                     value={inviteEmail}
                                     onChange={(e) => setInviteEmail(e.target.value)}
-                                    placeholder="user@example.com"
+                                    placeholder="user@example.com or channel-name"
                                     aria-label="invite email"
                                     className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
                                 />
@@ -440,12 +554,12 @@ const OrganizationDashboard = () => {
 
                         {/* PROMOTE */}
                         <div className="border-t border-white/10 pt-3 space-y-2">
-                            <label className="text-xs text-gray-400">Promote to Admin</label>
+                            <label className="text-xs text-gray-400">Promote to Admin by Email or Channel Name</label>
                             <div className="flex flex-col gap-2 sm:flex-row">
                                 <input
                                     value={promoteEmail}
                                     onChange={(e) => setPromoteEmail(e.target.value)}
-                                    placeholder="member@example.com"
+                                    placeholder="member@example.com or channel-name"
                                     aria-label="promote email"
                                     className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                                 />
@@ -491,16 +605,24 @@ const OrganizationDashboard = () => {
                                 Members will only see videos uploaded within your organization.
                             </p>
 
-                            <label className="flex items-center justify-between text-sm">
-                                <span>Allow private videos (owner only)</span>
-                                <input
-                                    type="checkbox"
-                                    aria-label="allow private videos"
-                                    checked={allowPrivateContent}
-                                    onChange={(e) => setAllowPrivateContent(e.target.checked)}
-                                    className="accent-purple-500"
-                                />
-                            </label>
+                            {restrictToOrgContent && (
+                                <>
+                                    <label className="flex items-center justify-between text-sm">
+                                        <span>Restrict admins to organization content</span>
+                                        <input
+                                            type="checkbox"
+                                            aria-label="restrict admins to organization content"
+                                            checked={restrictContentForAdmins}
+                                            onChange={(e) => setRestrictContentForAdmins(e.target.checked)}
+                                            className="accent-purple-500"
+                                        />
+                                    </label>
+
+                                    <p className="text-xs text-gray-400">
+                                        Turn this off if admins should still see all public rows and public search results.
+                                    </p>
+                                </>
+                            )}
 
                         </div>
 
@@ -533,18 +655,51 @@ const OrganizationDashboard = () => {
 
                         {/* CONDITIONAL FIELD */}
                         {uploadPolicy === "SPECIFIC_USERS" && (
-                            <div className="space-y-1">
-                                <label className="text-xs text-gray-400">Allowed Uploaders (User IDs)</label>
+                            <div className="space-y-3">
+                                <label className="text-xs text-gray-400">Allowed Uploaders</label>
                                 <input
-                                    value={allowedUploaderInput}
-                                    aria-label="allowed uploader user ids"
-                                    onChange={(e) => setAllowedUploaderInput(e.target.value)}
-                                    placeholder="e.g. 12, 45, 78"
+                                    value={allowedUploaderQuery}
+                                    aria-label="search allowed uploaders"
+                                    onChange={(e) => setAllowedUploaderQuery(e.target.value)}
+                                    placeholder="Search by name or channel name"
                                     className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
                                 />
-                                <p className="text-xs text-gray-500">
-                                    Enter comma-separated user IDs allowed to upload.
-                                </p>
+                                <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-black/20 p-3">
+                                    {allowedUploaderOptions.map((member) => {
+                                        const checked = allowedUploaderUserIds.includes(member.user.id)
+                                        return (
+                                            <label
+                                                key={member.id}
+                                                className="flex items-center justify-between gap-3 rounded-lg bg-black/30 px-3 py-2 text-sm"
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-white">
+                                                        {member.user.channel?.name || member.user.name || member.user.email}
+                                                    </p>
+                                                    <p className="truncate text-xs text-gray-400">
+                                                        {member.user.name || member.user.email}
+                                                        {member.user.channel?.username ? ` • @${member.user.channel.username}` : ""}
+                                                    </p>
+                                                </div>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() =>
+                                                        setAllowedUploaderUserIds((prev) =>
+                                                            checked
+                                                                ? prev.filter((id) => id !== member.user.id)
+                                                                : [...prev, member.user.id]
+                                                        )
+                                                    }
+                                                    className="accent-purple-500"
+                                                />
+                                            </label>
+                                        )
+                                    })}
+                                    {allowedUploaderOptions.length === 0 && (
+                                        <div className="text-xs text-gray-500">No matching members found.</div>
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -610,6 +765,15 @@ const OrganizationDashboard = () => {
                             </p>
                         </div>
 
+                        {pendingMembers.length > 1 && (
+                            <button
+                                onClick={approveAll}
+                                className="rounded bg-emerald-700 hover:bg-emerald-600 transition px-3 py-2 text-xs font-medium"
+                            >
+                                Approve All
+                            </button>
+                        )}
+
                         <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
 
                             {pendingMembers.map((m) => (
@@ -644,7 +808,7 @@ const OrganizationDashboard = () => {
                         <div>
                             <h2 className="text-lg font-semibold text-white">Members</h2>
                             <p className="text-xs text-gray-400 mt-1">
-                                Manage roles and access of your organization members.
+                                Review organization members and open full details.
                             </p>
                         </div>
 
@@ -668,7 +832,7 @@ const OrganizationDashboard = () => {
                                     {/* USER INFO */}
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <span className="text-sm text-white">
-                                            {m.user.name || m.user.email}
+                                            {m.user.channel?.name || m.user.name || m.user.email}
                                         </span>
 
                                         {/* ROLE BADGE */}
@@ -681,41 +845,20 @@ const OrganizationDashboard = () => {
                                             {m.role}
                                         </span>
 
-                                        {/* USER ID */}
                                         <span className="text-xs text-gray-500">
-                                            ID {m.user.id}
+                                            {m.user.channel?.name ? m.user.name || m.user.email : m.user.email}
                                         </span>
                                     </div>
 
                                     {/* ACTIONS */}
                                     <div className="flex gap-2 flex-wrap">
-
-                                        {m.role !== "ADMIN" && (
-                                            <button
-                                                onClick={() => makeAdmin(m.id)}
-                                                className="rounded bg-indigo-600 hover:bg-indigo-500 transition px-3 py-1 text-xs font-medium"
-                                            >
-                                                Make Admin
-                                            </button>
-                                        )}
-
-                                        {m.role === "ADMIN" && ownerId !== m.user.id && (
-                                            <button
-                                                onClick={() => removeAdmin(m.id)}
-                                                className="rounded bg-rose-600 hover:bg-rose-500 transition px-3 py-1 text-xs font-medium"
-                                            >
-                                                Remove Admin
-                                            </button>
-                                        )}
-
-                                        {ownerId !== m.user.id && (
-                                            <button
-                                                onClick={() => removeMember(m.id)}
-                                                className="rounded bg-gray-700 hover:bg-gray-600 transition px-3 py-1 text-xs font-medium"
-                                            >
-                                                Remove
-                                            </button>
-                                        )}
+                                        <button
+                                            onClick={() => setSelectedMember(m)}
+                                            className="inline-flex items-center gap-1 rounded bg-slate-700 hover:bg-slate-600 transition px-3 py-1 text-xs font-medium"
+                                        >
+                                            <Info size={14} />
+                                            View Info
+                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -788,138 +931,262 @@ const OrganizationDashboard = () => {
                     </div>
                 </div>
 
-                {activity?.watchHistory && (
-                    <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-5 space-y-4 shadow-md">
-
-                        {/* HEADER */}
-                        <div>
-                            <h2 className="text-lg font-semibold text-white">Activity</h2>
-                            <p className="text-xs text-gray-400 mt-1">
-                                Track user interactions across your organization
-                            </p>
-                        </div>
-
-                        {/* TABS */}
-                        <div className="flex flex-wrap gap-2">
-                            {[
-                                { key: "views", label: "Views" },
-                                { key: "likes", label: "Likes / Dislikes" },
-                                { key: "shares", label: "Shares" },
-                                { key: "watchHistory", label: "Watch History" }
-                            ].map((tab) => (
-                                <button
-                                    key={tab.key}
-                                    onClick={() => setActiveTab(tab.key as "views" | "likes" | "shares" | "watchHistory")}
-                                    className={`px-3 py-1.5 text-xs rounded-lg transition font-medium ${activeTab === tab.key
-                                        ? "bg-purple-600 text-white"
-                                        : "bg-white/10 text-gray-300 hover:bg-white/20"
-                                        }`}
-                                >
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* CONTENT */}
-                        <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
-
-                            {/* VIEWS */}
-                            {activeTab === "views" &&
-                                (activity.views || []).map((v) => (
-                                    <div
-                                        key={v.id}
-                                        className="rounded-lg bg-black/40 p-3 text-sm border border-white/5"
-                                    >
-                                        <p className="text-white">
-                                            {v.user?.name || v.user?.email}
-                                            <span className="text-gray-400"> viewed </span>
-                                            {v.video?.title}
-                                        </p>
-                                    </div>
-                                ))}
-
-                            {/* LIKES / DISLIKES */}
-                            {activeTab === "likes" && (
-                                <>
-                                    {(activity.likes || []).map((v) => (
-                                        <div
-                                            key={`l-${v.id}`}
-                                            className="rounded-lg bg-black/40 p-3 text-sm border border-white/5"
-                                        >
-                                            <p className="text-white">
-                                                {v.user?.name || v.user?.email}
-                                                <span className="text-emerald-400"> liked </span>
-                                                {v.video?.title}
-                                            </p>
-                                        </div>
-                                    ))}
-
-                                    {(activity.dislikes || []).map((v) => (
-                                        <div
-                                            key={`d-${v.id}`}
-                                            className="rounded-lg bg-black/40 p-3 text-sm border border-white/5"
-                                        >
-                                            <p className="text-white">
-                                                {v.user?.name || v.user?.email}
-                                                <span className="text-rose-400"> disliked </span>
-                                                {v.video?.title}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </>
-                            )}
-
-                            {/* SHARES */}
-                            {activeTab === "shares" &&
-                                (activity.shares || []).map((v) => (
-                                    <div
-                                        key={`s-${v.id}`}
-                                        className="rounded-lg bg-black/40 p-3 text-sm border border-white/5"
-                                    >
-                                        <p className="text-white">
-                                            {v.user?.name || v.user?.email}
-                                            <span className="text-blue-400"> shared </span>
-                                            {v.video?.title}
-                                        </p>
-                                    </div>
-                                ))}
-
-                            {/* WATCH HISTORY */}
-                            {activeTab === "watchHistory" &&
-                                (activity.watchHistory || []).map((w) => (
-                                    <div
-                                        key={w.id}
-                                        className="rounded-lg bg-black/40 p-3 text-sm border border-white/5"
-                                    >
-                                        <p className="text-white">
-                                            {w.user?.name || w.user?.email}
-                                            <span className="text-gray-400"> watched </span>
-                                            {w.video?.title}
-                                        </p>
-                                        <p className="text-xs text-gray-400 mt-1">
-                                            Watched {w.watchedSeconds}s • Position {w.lastPositionSeconds}s
-                                        </p>
-                                    </div>
-                                ))}
-
-                            {/* EMPTY STATE */}
-                            {((activeTab === "views" && (activity.views || []).length === 0) ||
-                                (activeTab === "likes" &&
-                                    (activity.likes || []).length === 0 &&
-                                    (activity.dislikes || []).length === 0) ||
-                                (activeTab === "shares" && (activity.shares || []).length === 0) ||
-                                (activeTab === "watchHistory" &&
-                                    (activity.watchHistory || []).length === 0)) && (
-                                    <div className="text-center text-sm text-gray-400 py-6">
-                                        No activity available
-                                    </div>
-                                )}
+                {activity && (
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <LineChartCard
+                            title="Views By Video"
+                            dates={graphSeries.views.dates}
+                            series={graphSeries.views.series}
+                        />
+                        <BarChartCard
+                            title="Shares By Video"
+                            dates={graphSeries.shares.dates}
+                            series={graphSeries.shares.series}
+                        />
+                        <div className="lg:col-span-2">
+                            <LineChartCard
+                                title="Engagement Mix"
+                                dates={graphSeries.engagement.dates}
+                                series={graphSeries.engagement.series}
+                            />
                         </div>
                     </div>
                 )}
             </div>
+            {selectedMember && (
+                <MemberInfoModal
+                    member={selectedMember}
+                    ownerId={ownerId}
+                    onClose={() => setSelectedMember(null)}
+                    onMakeAdmin={makeAdmin}
+                    onRemoveAdmin={removeAdmin}
+                    onRemoveMember={removeMember}
+                />
+            )}
         </AppLayout>
     )
 }
+
+const CHART_COLORS = ["#60a5fa", "#34d399", "#f59e0b", "#f472b6"]
+
+const LineChartCard = ({
+    title,
+    dates,
+    series
+}: {
+    title: string
+    dates: string[]
+    series: ChartSeries[]
+}) => {
+    const width = 640
+    const height = 220
+    const padding = 28
+    const maxValue = Math.max(...series.flatMap((item) => item.values), 1)
+    const xStep = dates.length > 1 ? (width - padding * 2) / (dates.length - 1) : 0
+    const yFor = (value: number) => height - padding - (value / maxValue) * (height - padding * 2)
+
+    return (
+        <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-5 space-y-4 shadow-md">
+            <div>
+                <h2 className="text-lg font-semibold text-white">{title}</h2>
+                <p className="text-xs text-gray-400 mt-1">Unique date and video trend lines across recent activity.</p>
+            </div>
+
+            {dates.length && series.length ? (
+                <>
+                    <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible">
+                        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#475569" strokeWidth="1" />
+                        <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#475569" strokeWidth="1" />
+                        {series.map((item, seriesIndex) => {
+                            const points = item.values.map((value, index) => `${padding + xStep * index},${yFor(value)}`).join(" ")
+                            return (
+                                <g key={`${title}-${item.label}`}>
+                                    <polyline
+                                        fill="none"
+                                        stroke={CHART_COLORS[seriesIndex % CHART_COLORS.length]}
+                                        strokeWidth="3"
+                                        points={points}
+                                    />
+                                    {item.values.map((value, index) => (
+                                        <circle
+                                            key={`${item.label}-${dates[index]}`}
+                                            cx={padding + xStep * index}
+                                            cy={yFor(value)}
+                                            r="4"
+                                            fill={CHART_COLORS[seriesIndex % CHART_COLORS.length]}
+                                        />
+                                    ))}
+                                </g>
+                            )
+                        })}
+                    </svg>
+                    <div className="flex flex-wrap gap-4 text-xs text-gray-300">
+                        {series.map((item, index) => (
+                            <div key={item.label} className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                                <span>{item.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-400 sm:grid-cols-4">
+                        {dates.map((date) => (
+                            <span key={`${title}-${date}`}>{date}</span>
+                        ))}
+                    </div>
+                </>
+            ) : (
+                <div className="py-8 text-sm text-center text-gray-400">No data yet</div>
+            )}
+        </div>
+    )
+}
+
+const BarChartCard = ({
+    title,
+    dates,
+    series
+}: {
+    title: string
+    dates: string[]
+    series: ChartSeries[]
+}) => {
+    const width = 640
+    const height = 220
+    const padding = 28
+    const maxValue = Math.max(...series.flatMap((item) => item.values), 1)
+    const groupWidth = dates.length ? (width - padding * 2) / dates.length : 0
+    const barWidth = series.length ? Math.max(10, (groupWidth - 8) / series.length) : 0
+
+    return (
+        <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-5 space-y-4 shadow-md">
+            <div>
+                <h2 className="text-lg font-semibold text-white">{title}</h2>
+                <p className="text-xs text-gray-400 mt-1">Grouped bars by unique date and video shares.</p>
+            </div>
+
+            {dates.length && series.length ? (
+                <>
+                    <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible">
+                        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#475569" strokeWidth="1" />
+                        {dates.map((date, dateIndex) =>
+                            series.map((item, seriesIndex) => {
+                                const value = item.values[dateIndex] || 0
+                                const barHeight = value === 0 ? 2 : (value / maxValue) * (height - padding * 2)
+                                const x = padding + groupWidth * dateIndex + seriesIndex * barWidth + 4
+                                const y = height - padding - barHeight
+                                return (
+                                    <rect
+                                        key={`${date}-${item.label}`}
+                                        x={x}
+                                        y={y}
+                                        width={barWidth - 4}
+                                        height={barHeight}
+                                        rx="4"
+                                        fill={CHART_COLORS[seriesIndex % CHART_COLORS.length]}
+                                    />
+                                )
+                            })
+                        )}
+                    </svg>
+                    <div className="flex flex-wrap gap-4 text-xs text-gray-300">
+                        {series.map((item, index) => (
+                            <div key={item.label} className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                                <span>{item.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-400 sm:grid-cols-4">
+                        {dates.map((date) => (
+                            <span key={`${title}-${date}`}>{date}</span>
+                        ))}
+                    </div>
+                </>
+            ) : (
+                <div className="py-8 text-sm text-center text-gray-400">No data yet</div>
+            )}
+        </div>
+    )
+}
+
+const MemberInfoModal = ({
+    member,
+    ownerId,
+    onClose,
+    onMakeAdmin,
+    onRemoveAdmin,
+    onRemoveMember
+}: {
+    member: Membership
+    ownerId: string | null
+    onClose: () => void
+    onMakeAdmin: (id: string) => Promise<void>
+    onRemoveAdmin: (id: string) => Promise<void>
+    onRemoveMember: (id: string) => Promise<void>
+}) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={onClose}>
+        <div
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#111] p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+        >
+            <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Member Details</h2>
+                <button onClick={onClose} className="text-sm text-gray-400 hover:text-white">Close</button>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+                <InfoRow label="Name" value={member.user.name || member.user.email || "—"} />
+                <InfoRow label="Channel Name" value={member.user.channel?.name || "—"} />
+                <InfoRow label="Channel Username" value={member.user.channel?.username || "—"} />
+                <InfoRow label="Membership Requested" value={member.requestedAt ? new Date(member.requestedAt).toLocaleString() : "—"} />
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+                {member.role !== "ADMIN" && (
+                    <button
+                        onClick={async () => {
+                            await onMakeAdmin(member.id)
+                            onClose()
+                        }}
+                        className="rounded bg-indigo-600 hover:bg-indigo-500 transition px-4 py-2 text-sm font-medium"
+                    >
+                        Make Admin
+                    </button>
+                )}
+
+                {member.role === "ADMIN" && ownerId !== member.user.id && (
+                    <button
+                        onClick={async () => {
+                            await onRemoveAdmin(member.id)
+                            onClose()
+                        }}
+                        className="rounded bg-rose-600 hover:bg-rose-500 transition px-4 py-2 text-sm font-medium"
+                    >
+                        Remove Admin
+                    </button>
+                )}
+
+                {ownerId !== member.user.id && (
+                    <button
+                        onClick={async () => {
+                            await onRemoveMember(member.id)
+                            onClose()
+                        }}
+                        className="rounded bg-gray-700 hover:bg-gray-600 transition px-4 py-2 text-sm font-medium"
+                    >
+                        Remove User
+                    </button>
+                )}
+            </div>
+        </div>
+    </div>
+)
+
+const InfoRow = ({ label, value }: { label: string; value: string }) => (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+        <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
+        <p className="mt-1 text-sm text-white break-words">{value}</p>
+    </div>
+)
 
 export default OrganizationDashboard

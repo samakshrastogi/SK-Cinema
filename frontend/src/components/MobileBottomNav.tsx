@@ -1,14 +1,34 @@
+import { useEffect, useState } from "react"
 import { Home, Search, Film, Heart, User, Smartphone } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
+import { api } from "@/api/axios"
 
 const MobileBottomNav = () => {
     const navigate = useNavigate()
     const location = useLocation()
+    const [hasPortraitVideos, setHasPortraitVideos] = useState(false)
+
+    useEffect(() => {
+        let mounted = true
+        api.get("/video/portrait")
+            .then((res) => {
+                if (mounted) {
+                    setHasPortraitVideos((res.data?.data || []).length > 0)
+                }
+            })
+            .catch(() => {
+                if (mounted) setHasPortraitVideos(false)
+            })
+
+        return () => {
+            mounted = false
+        }
+    }, [])
 
     const items = [
         { icon: Home, path: "/home" },
         { icon: Search, path: "/search" },
-        { icon: Smartphone, path: "/portrait" },
+        ...(hasPortraitVideos ? [{ icon: Smartphone, path: "/portrait" }] : []),
         { icon: Film, path: "/playlists" },
         { icon: Heart, path: "/favorites" },
         { icon: User, path: "/profile" },

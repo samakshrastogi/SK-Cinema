@@ -121,7 +121,6 @@ const PortraitPlayer = () => {
     useEffect(() => {
         if (!activeVideo?.publicId) return
         void loadActions(activeVideo.publicId)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeVideo?.publicId])
 
     useEffect(() => {

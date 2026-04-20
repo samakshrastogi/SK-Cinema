@@ -192,6 +192,7 @@ model Organization {
   allowedDomain String?
   allowPublicContent Boolean @default(true)
   allowPrivateContent Boolean @default(false)
+  restrictContentForAdmins Boolean @default(true)
   uploadPolicy OrganizationUploadPolicy @default(ADMINS_ONLY)
   trialStartAt DateTime @default(now())
   trialEndsAt DateTime

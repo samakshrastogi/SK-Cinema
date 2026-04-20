@@ -7,9 +7,8 @@ import { promisify } from "util"
 import { prisma } from "../../config/prisma"
 import { s3 } from "../../config/s3"
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
-import { generateThumbnail } from "../../utils/thumbnail"
 import { videoAIQueue } from "../../queues/video-ai.queue"
-import { videoMetadataQueue } from "../../services/video-processing.service"
+import { thumbnailQueue, videoMetadataQueue } from "../../services/video-processing.service"
 import { pipeline } from "stream/promises"
 
 const execAsync = promisify(exec)
@@ -22,32 +21,36 @@ export const processVideoAfterUpload = async (
     initialDescription?: string
 ) => {
     let tempVideoPath = ""
-    let tempThumbnailPath = ""
     let tempSpritePath = ""
 
     const generateSpritesheet = async () => {
-        tempSpritePath = path.join(os.tmpdir(), `${videoId}_spritesheet.jpg`)
+        tempSpritePath = path.join(os.tmpdir(), `${videoId}_spritesheet.webp`)
 
         const { stdout } = await execAsync(
             `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${tempVideoPath}"`
         )
 
-        const duration = Math.max(1, Math.floor(Number.parseFloat(stdout) || 1))
+        const duration = Math.max(1, Number.parseFloat(stdout) || 1)
         const totalFrames = Math.max(1, Math.min(MAX_SPRITE_FRAMES, duration))
+        const intervalSec =
+            totalFrames <= 1
+                ? Math.max(1, Math.round(duration))
+                : Math.max(1, Math.round(duration / (totalFrames - 1)))
 
         const cols = Math.min(10, totalFrames)
         const rows = Math.ceil(totalFrames / cols)
-        const frameWidth = 160
-        const frameHeight = 90
+        const frameWidth = 320
+        const frameHeight = 180
+        const fpsValue = totalFrames <= 1 ? 1 : totalFrames / Math.max(duration, 1)
 
         const sheetCommand =
-            `ffmpeg -t ${totalFrames} -i "${tempVideoPath}" ` +
-            `-vf "fps=1,scale=${frameWidth}:${frameHeight}:force_original_aspect_ratio=decrease,pad=${frameWidth}:${frameHeight}:(ow-iw)/2:(oh-ih)/2,tile=${cols}x${rows}" ` +
-            `-frames:v 1 -q:v 3 -y "${tempSpritePath}"`
+            `ffmpeg -i "${tempVideoPath}" ` +
+            `-vf "fps=${fpsValue},scale=${frameWidth}:${frameHeight}:flags=lanczos:force_original_aspect_ratio=decrease,pad=${frameWidth}:${frameHeight}:(ow-iw)/2:(oh-ih)/2:color=black,tile=${cols}x${rows}" ` +
+            `-frames:v 1 -c:v libwebp -quality 92 -compression_level 4 -y "${tempSpritePath}"`
 
         await execAsync(sheetCommand)
 
-        const spritesheetKey = `${channelUsername}/spritesheets/${videoId}/sheet.jpg`
+        const spritesheetKey = `${channelUsername}/spritesheets/${videoId}/sheet.webp`
         const metaKey = `${channelUsername}/spritesheets/${videoId}/meta.json`
 
         await s3.send(
@@ -55,7 +58,7 @@ export const processVideoAfterUpload = async (
                 Bucket: process.env.AWS_BUCKET!,
                 Key: spritesheetKey,
                 Body: fs.createReadStream(tempSpritePath),
-                ContentType: "image/jpeg"
+                ContentType: "image/webp"
             })
         )
 
@@ -65,7 +68,7 @@ export const processVideoAfterUpload = async (
             cols,
             rows,
             totalFrames,
-            intervalSec: 1
+            intervalSec
         }
 
         await s3.send(
@@ -95,30 +98,6 @@ export const processVideoAfterUpload = async (
             select: { thumbnailKey: true }
         })
 
-        if (!currentVideo?.thumbnailKey) {
-            tempThumbnailPath = path.join(os.tmpdir(), `${videoId}_thumb.jpg`)
-
-            await generateThumbnail(tempVideoPath, tempThumbnailPath)
-
-            const thumbnailKey = `${channelUsername}/thumbnails/${Date.now()}.jpg`
-
-            const buffer = fs.readFileSync(tempThumbnailPath)
-
-            await s3.send(
-                new PutObjectCommand({
-                    Bucket: process.env.AWS_BUCKET!,
-                    Key: thumbnailKey,
-                    Body: buffer,
-                    ContentType: "image/jpeg"
-                })
-            )
-
-            await prisma.video.update({
-                where: { id: videoId },
-                data: { thumbnailKey }
-            })
-        }
-
         try {
             await generateSpritesheet()
         } catch (spriteError) {
@@ -141,6 +120,22 @@ export const processVideoAfterUpload = async (
                 tags: []
             }
         })
+
+        if (!currentVideo?.thumbnailKey) {
+            await thumbnailQueue.add(
+                "generateThumbnail",
+                { videoId },
+                {
+                    attempts: 3,
+                    backoff: {
+                        type: "exponential",
+                        delay: 5000
+                    },
+                    removeOnComplete: true,
+                    removeOnFail: false
+                }
+            )
+        }
 
         await videoAIQueue.add(
             "processVideoAI",
@@ -190,7 +185,6 @@ export const processVideoAfterUpload = async (
     } finally {
 
         if (tempVideoPath && fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath)
-        if (tempThumbnailPath && fs.existsSync(tempThumbnailPath)) fs.unlinkSync(tempThumbnailPath)
         if (tempSpritePath && fs.existsSync(tempSpritePath)) fs.unlinkSync(tempSpritePath)
 
     }

@@ -26,7 +26,7 @@ const UserAvatar = ({
 
     return (
         <div
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-purple-600 overflow-hidden flex items-center justify-center font-semibold ${className}`}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-linear-to-br from-slate-700 to-slate-900 text-white overflow-hidden flex items-center justify-center font-semibold ${className}`}
         >
             {avatarSrc && !avatarFailed ? (
                 <img
@@ -36,7 +36,7 @@ const UserAvatar = ({
                     className="w-full h-full object-cover"
                 />
             ) : (
-                getInitials(name)
+                <span className="select-none">{getInitials(name)}</span>
             )}
         </div>
     )

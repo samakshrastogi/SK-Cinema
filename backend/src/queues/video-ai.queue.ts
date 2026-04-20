@@ -5,6 +5,7 @@ import { redisConnection } from "../config/redis";
 
 export const videoAIQueue = new Queue("videoAIQueue", {
     connection: redisConnection as any,
+    skipVersionCheck: true,
 
     defaultJobOptions: {
         attempts: 3,

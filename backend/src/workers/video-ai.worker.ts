@@ -6,219 +6,256 @@ import path from "path"
 import ffmpeg from "fluent-ffmpeg"
 import { exec } from "child_process"
 import axios from "axios"
+import { redisConnection } from "../config/redis"
 import { s3 } from "../config/s3"
 import { GetObjectCommand } from "@aws-sdk/client-s3"
 import { pipeline } from "stream/promises"
-import { redisConnection } from "../config/redis"
-import FormData from "form-data"
 
 ffmpeg.setFfmpegPath("ffmpeg")
 
-const extractAudio = (videoPath: string, audioPath: string): Promise<void> => {
+const log = (...args: any[]) => console.log(...args)
+const now = () => Date.now()
+const timeTaken = (start: number) => `${((Date.now() - start) / 1000).toFixed(2)}s`
+
+const ensureExists = (filePath: string) => {
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`File not created: ${filePath}`)
+    }
+}
+
+const safeDelete = (filePath: string) => {
+    try {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    } catch (err) {
+        console.error("Delete error:", filePath, err)
+    }
+}
+
+const runWhisper = (audioPath: string, outputDir: string): Promise<string> => {
     return new Promise((resolve, reject) => {
-        ffmpeg(videoPath)
-            .noVideo()
-            .audioCodec("libmp3lame")
-            .save(audioPath)
-            .on("end", () => resolve())
-            .on("error", reject)
+
+        const start = now()
+
+        const cmd = `whisper "${audioPath}" \
+--model tiny.en \
+--fp16 False \
+--threads 4 \
+--language en \
+--output_dir "${outputDir}"`
+
+        log("🎤 Whisper started")
+
+        exec(cmd, { maxBuffer: 1024 * 1024 * 100 }, (err, stdout, stderr) => {
+
+            log(`⏱ Whisper finished in ${timeTaken(start)}`)
+
+            if (err) {
+                console.error("Whisper error:", stderr)
+                return reject(err)
+            }
+
+            const transcript = stdout
+                .split("\n")
+                .filter(l => l.includes("-->"))
+                .map(l => l.replace(/\[.*?\]/, "").trim())
+                .join(" ")
+
+            if (!transcript) return reject(new Error("Transcript empty"))
+
+            resolve(transcript)
+        })
     })
 }
 
+const runOllama = async (prompt: string): Promise<string> => {
+    const start = now()
+
+    log("🤖 Ollama started")
+
+    const res = await axios.post(
+        "http://localhost:11434/api/generate",
+        {
+            model: "phi3",
+            prompt,
+            stream: false,
+            options: {
+                num_predict: 120,
+                temperature: 0.7
+            }
+        },
+        {
+            timeout: 300000 // ✅ 5 minutes
+        }
+    )
+
+    log(`⏱ Ollama finished in ${timeTaken(start)}`)
+
+    return res.data.response
+}
 
 const extractJSON = (text: string) => {
-
     try {
-
-        const first = text.indexOf("{")
-        const last = text.lastIndexOf("}")
-
-        if (first === -1 || last === -1) return {}
-
-        return JSON.parse(text.substring(first, last + 1))
-
+        const match = text.match(/\{[\s\S]*\}/)
+        return match ? JSON.parse(match[0]) : {}
     } catch {
         return {}
     }
-
 }
 
-const normalizeArray = (value: any) => {
-
-    if (Array.isArray(value)) return value
-
-    if (typeof value === "string") {
-        return value
-            .split(",")
-            .map((v) => v.trim())
-            .filter(Boolean)
-    }
-
+const normalizeArray = (val: any) => {
+    if (Array.isArray(val)) return val
+    if (typeof val === "string") return val.split(",").map(v => v.trim()).filter(Boolean)
     return []
-
 }
 
-const shortenTranscript = (text: string) => {
-    const words = text.split(/\s+/)
-    return words.slice(0, 300).join(" ")
+const shorten = (text: string) =>
+    text.split(/\s+/).slice(0, 120).join(" ")
+
+const generateTitle = (text: string) => {
+    const first = text.split(".")[0]
+    return first.length > 20 ? first.slice(0, 80) : "Interesting Video Content"
+}
+
+const generateDescription = (text: string) => {
+    const sentences = text.split(".").slice(0, 2).join(".")
+    return sentences.length > 30
+        ? sentences
+        : "This video explains useful insights from the uploaded content."
 }
 
 const processVideoAI = async (job: Job) => {
 
-    const start = Date.now()
+    const totalStart = now()
     const { videoId } = job.data
-
-    console.log("AI Worker started:", videoId)
-
     const updateProgress = async (progress: number) => {
         await job.updateProgress({ videoId, progress })
     }
 
-    await updateProgress(5)
+    log(`\n🚀 JOB STARTED → Video ${videoId}`)
 
-    const video = await prisma.video.findUnique({
-        where: { id: videoId }
-    })
+    const uniqueId = `${videoId}-${Date.now()}`
+    const tmpDir = os.tmpdir()
 
-    if (!video) throw new Error("Video not found")
+    const tempVideo = path.join(tmpDir, `${uniqueId}.mp4`)
+    const tempAudio = path.join(tmpDir, `${uniqueId}.mp3`)
 
-    const tempVideoPath = path.join(os.tmpdir(), `${videoId}_video.mp4`)
-    const tempAudioPath = path.join(os.tmpdir(), `${videoId}_audio.mp3`)
+    const createdFiles: string[] = []
 
     try {
+        await updateProgress(5)
 
+        const step1 = now()
+        const video = await prisma.video.findUnique({ where: { id: videoId } })
+        if (!video) throw new Error("Video not found")
+        log(`⏱ Fetch video DB: ${timeTaken(step1)}`)
+        await updateProgress(12)
+
+        const step2 = now()
         await prisma.videoAI.update({
             where: { videoId },
             data: { status: "processing" }
         })
+        log(`⏱ Update DB status: ${timeTaken(step2)}`)
+        await updateProgress(18)
 
-        console.log("Downloading video")
+        const step3 = now()
+        log("⬇️ Downloading video")
+        const obj = await s3.send(new GetObjectCommand({
+            Bucket: process.env.AWS_BUCKET!,
+            Key: video.s3Key
+        }))
 
-        const object = await s3.send(
-            new GetObjectCommand({
-                Bucket: process.env.AWS_BUCKET!,
-                Key: video.s3Key
-            })
-        )
+        await pipeline(obj.Body as any, fs.createWriteStream(tempVideo))
+        ensureExists(tempVideo)
+        createdFiles.push(tempVideo)
+        log(`⏱ Download done: ${timeTaken(step3)}`)
+        await updateProgress(35)
 
-        await pipeline(object.Body as any, fs.createWriteStream(tempVideoPath))
+        const step4 = now()
+        log("🎵 Extracting audio")
+        await new Promise((resolve, reject) => {
+            ffmpeg(tempVideo)
+                .noVideo()
+                .audioCodec("libmp3lame")
+                .audioFrequency(16000)
+                .audioChannels(1)
+                .duration(60) // ✅ FIXED 60 sec
+                .save(tempAudio)
+                .on("end", resolve)
+                .on("error", reject)
+        })
+        ensureExists(tempAudio)
+        createdFiles.push(tempAudio)
+        log(`⏱ Audio extraction: ${timeTaken(step4)}`)
+        await updateProgress(55)
 
-        await updateProgress(25)
+        const step5 = now()
+        const transcript = await runWhisper(tempAudio, tmpDir)
+        log(`⏱ Whisper total: ${timeTaken(step5)}`)
+        await updateProgress(72)
 
-        console.log("Extracting audio")
+        const step6 = now()
+        const raw = await runOllama(`
+You are a professional content writer.
 
-        await extractAudio(tempVideoPath, tempAudioPath)
-
-        await updateProgress(45)
-
-        console.log("Calling remote Whisper via AI server")
-
-        const form = new FormData()
-        form.append("file", fs.createReadStream(tempAudioPath))
-
-        const whisperRes = await axios.post(
-            `${process.env.AI_SERVER_URL}/transcribe`,
-            form,
-            {
-                headers: form.getHeaders(),
-                maxBodyLength: Infinity
-            }
-        )
-
-        const transcript = whisperRes.data.transcript
-
-        await updateProgress(65)
-
-        console.log("Calling remote Ollama via AI server")
-
-        const rawResponseRes = await axios.post(
-            `${process.env.AI_SERVER_URL}/generate`,
-            {
-                prompt: `
-You are a strict JSON generator.
-
-Return ONLY valid JSON. No explanation. No text outside JSON.
-
-Format:
+RETURN ONLY JSON:
 {
-  "title": "string",
-  "description": "string",
-  "keywords": ["string"],
-  "tags": ["string"]
+  "title": "engaging title",
+  "description": "clear summary",
+  "keywords": ["k1","k2","k3"],
+  "tags": ["t1","t2","t3"]
 }
 
-Rules:
-- Title must be short and catchy
-- Description must be 2-3 sentences
-- Keywords = 5 relevant words
-- Tags = 5 short tags
-
 Transcript:
-${shortenTranscript(transcript)}
-`
-            }
-        )
+${shorten(transcript)}
+`)
+        log(`⏱ Data generation: ${timeTaken(step6)}`)
+        await updateProgress(88)
 
-        const rawResponse = rawResponseRes.data.response
-
-        console.log("OLLAMA RAW:", rawResponse)
-
-        const parsed = extractJSON(rawResponse)
+        const step7 = now()
+        const parsed = extractJSON(raw)
 
         const keywords = normalizeArray(parsed.keywords)
         const tags = normalizeArray(parsed.tags)
-
-        const aiTitle =
-            typeof parsed.title === "string"
-                ? parsed.title
-                : transcript.split(".")[0].slice(0, 80)
-
-        const aiDescription =
-            typeof parsed.description === "string"
-                ? parsed.description
-                : transcript.slice(0, 200)
-
-        await updateProgress(90)
 
         await prisma.videoAI.update({
             where: { videoId },
             data: {
                 transcript,
-                keywords,
-                tags,
-                aiTitle,
-                aiDescription,
+                keywords: keywords.length ? keywords : ["video"],
+                tags: tags.length ? tags : ["general"],
+                aiTitle: parsed.title || generateTitle(transcript),
+                aiDescription: parsed.description || generateDescription(transcript),
                 status: "completed"
             }
         })
 
+        log(`⏱ DB save: ${timeTaken(step7)}`)
         await updateProgress(100)
 
-        console.log("AI completed:", videoId)
-        console.log("AI time:", Date.now() - start, "ms")
-
+        log(`\n✅ JOB COMPLETED → Video ${videoId}`)
+        log(`🔥 TOTAL TIME (Video ${videoId}): ${timeTaken(totalStart)}\n`)
         return { videoId }
 
-    } catch (error) {
+    } catch (err) {
 
-        console.error("AI job failed:", videoId, error)
+        console.error("❌ JOB FAILED", err)
 
         await prisma.videoAI.update({
             where: { videoId },
             data: { status: "failed" }
         })
 
-        throw error
+        throw err
 
     } finally {
 
-        try {
-            if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath)
-            if (fs.existsSync(tempAudioPath)) fs.unlinkSync(tempAudioPath)
-        } catch { }
+        const cleanupStart = now()
 
+        for (const file of createdFiles) safeDelete(file)
+
+        log(`🧹 Cleanup done in ${timeTaken(cleanupStart)}`)
     }
-
 }
 
 const worker = new Worker(
@@ -226,20 +263,17 @@ const worker = new Worker(
     processVideoAI,
     {
         connection: redisConnection as any,
-        concurrency: 1,
-        limiter: {
-            max: 10,
-            duration: 1000
-        }
+        skipVersionCheck: true,
+        concurrency: 2
     }
 )
 
-worker.on("completed", (job) => {
-    console.log(`Job completed: ${job.id}`)
+worker.on("completed", job => {
+    console.log("🎉 Job completed:", job.id)
 })
 
 worker.on("failed", (job, err) => {
-    console.error(`Job failed: ${job?.id}`, err)
+    console.error("💥 Job failed:", job?.id, err)
 })
 
 export default worker

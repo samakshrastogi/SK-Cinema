@@ -11,7 +11,10 @@ import { generateMultipleThumbnails } from "./ffmpeg.service";
 import { selectBestThumbnail } from "./selector.service";
 import { optimizeThumbnail } from "./optimizer.service";
 
-export const processThumbnailPipeline = async (videoId: string) => {
+export const processThumbnailPipeline = async (
+    videoId: string,
+    onProgress?: (progress: number) => void
+) => {
 
     const video = await prisma.video.findUnique({
         where: { id: videoId },
@@ -36,6 +39,8 @@ export const processThumbnailPipeline = async (videoId: string) => {
 
     const stream = object.Body as any;
 
+    onProgress?.(18)
+
     await new Promise((resolve, reject) => {
         const writeStream = fs.createWriteStream(tempVideoPath);
         stream.pipe(writeStream);
@@ -43,15 +48,18 @@ export const processThumbnailPipeline = async (videoId: string) => {
         writeStream.on("finish", () => resolve(null)); // ✅ FIXED
     });
 
+    onProgress?.(34)
     const thumbnails = await generateMultipleThumbnails(
         tempVideoPath,
         tempDir
     );
 
+    onProgress?.(56)
     const best = await selectBestThumbnail(thumbnails);
 
     const optimizedPath = path.join(tempDir, "optimized.webp");
 
+    onProgress?.(72)
     await optimizeThumbnail(best, optimizedPath);
 
     const thumbnailKey =
@@ -60,6 +68,7 @@ export const processThumbnailPipeline = async (videoId: string) => {
     /* ✅ DIRECT S3 UPLOAD (no external function needed) */
     const fileBuffer = fs.readFileSync(optimizedPath);
 
+    onProgress?.(88)
     await s3.send(
         new PutObjectCommand({
             Bucket: process.env.AWS_BUCKET!,
@@ -75,6 +84,8 @@ export const processThumbnailPipeline = async (videoId: string) => {
             thumbnailKey
         }
     });
+
+    onProgress?.(100)
 
     try {
         fs.rmSync(tempDir, { recursive: true, force: true });

@@ -42,7 +42,8 @@ export const handleCreateChannel = async (
 
         return res.status(400).json({
             success: false,
-            message: error.message || "Failed to create channel"
+            message: error.message || "Failed to create channel",
+            suggestions: (error as any).suggestions || []
         })
     }
 }

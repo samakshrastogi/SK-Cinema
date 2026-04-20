@@ -20,6 +20,10 @@ interface ActiveOrganizationLite {
     ownerId?: string
 }
 
+interface OrganizationMembershipLite {
+    organization?: ActiveOrganizationLite
+}
+
 const Topbar = () => {
     const { logout, user } = useAuth()
     const navigate = useNavigate()
@@ -69,19 +73,26 @@ const Topbar = () => {
     }, [])
 
     useEffect(() => {
-        loadNotifications()
-        const timer = window.setInterval(loadNotifications, 20000)
-        return () => window.clearInterval(timer)
+        const timer = window.setTimeout(() => {
+            void loadNotifications()
+        }, 0)
+        const interval = window.setInterval(() => {
+            void loadNotifications()
+        }, 20000)
+        return () => {
+            window.clearTimeout(timer)
+            window.clearInterval(interval)
+        }
     }, [])
 
     useEffect(() => {
         const fetchOrg = async () => {
             try {
                 const res = await api.get("/organization/my")
-                const memberships = res.data?.data?.memberships || []
+                const memberships = (res.data?.data?.memberships || []) as OrganizationMembershipLite[]
                 const accessOrgId = res.data?.data?.access?.activeOrganizationId
                 const activeMembership = memberships.find(
-                    (m: any) => m.organization?.id === accessOrgId
+                    (m) => m.organization?.id === accessOrgId
                 )
 
                 if (activeMembership?.organization) {
@@ -96,7 +107,7 @@ const Topbar = () => {
 
                 const canLeave =
                     Boolean(activeMembership?.organization) &&
-                    activeMembership.organization.ownerId !== user?.id
+                    activeMembership?.organization?.ownerId !== user?.id
                 setCanLeaveOrganization(canLeave)
             } catch {
                 setActiveOrganization(null)
@@ -131,9 +142,11 @@ const Topbar = () => {
     }
 
     useEffect(() => {
-        if (location.pathname === "/search") {
+        if (location.pathname !== "/search") return
+        const timer = window.setTimeout(() => {
             setQuery(searchParams.get("q") || "")
-        }
+        }, 0)
+        return () => window.clearTimeout(timer)
     }, [location.pathname, searchParams])
 
     useEffect(() => {

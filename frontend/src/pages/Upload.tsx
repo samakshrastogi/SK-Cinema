@@ -21,6 +21,12 @@ type UploadStatus =
     | "completed"
     | "error"
 
+type WorkerStatus =
+    | "idle"
+    | "processing"
+    | "completed"
+    | "failed"
+
 interface SpritesheetData {
     spritesheetUrl: string
     frameWidth: number
@@ -51,6 +57,9 @@ interface UploadItem {
 
     uploadProgress: number
     aiProgress: number
+    thumbnailProgress: number
+    aiStatus: WorkerStatus
+    thumbnailStatus: WorkerStatus
 
     speed: number
     status: UploadStatus
@@ -70,6 +79,24 @@ const socket = io(import.meta.env.VITE_SOCKET_URL, {
 const wait = (ms: number) =>
     new Promise((resolve) => setTimeout(resolve, ms))
 
+const isWorkerFinished = (status: WorkerStatus) =>
+    status === "completed" || status === "failed"
+
+const syncProcessingState = (item: UploadItem): UploadItem => {
+    if (
+        item.status === "processing" &&
+        isWorkerFinished(item.aiStatus) &&
+        isWorkerFinished(item.thumbnailStatus)
+    ) {
+        return {
+            ...item,
+            status: "completed"
+        }
+    }
+
+    return item
+}
+
 const Upload = () => {
 
     const navigate = useNavigate()
@@ -80,6 +107,7 @@ const Upload = () => {
     const [channelNameInput, setChannelNameInput] = useState("")
     const [channelDescriptionInput, setChannelDescriptionInput] = useState("")
     const [channelError, setChannelError] = useState("")
+    const [channelSuggestions, setChannelSuggestions] = useState<string[]>([])
 
     const [queue, setQueue] = useState<UploadItem[]>([])
     const [uploading, setUploading] = useState(false)
@@ -131,27 +159,19 @@ const Upload = () => {
         })
 
         socket.on("ai-progress", ({ videoId, progress }) => {
-            console.log("📡 SOCKET EVENT →", { videoId, progress });
-
-            setQueue(prev => {
-                console.log("📦 CURRENT QUEUE →", prev);
-
-                return prev.map(item => {
-                    const match =
-                        String(item.videoId) === String(videoId);
-
-                    console.log("🔍 MATCH CHECK →", {
-                        itemVideoId: item.videoId,
-                        incomingVideoId: videoId,
-                        match,
-                    });
-
-                    return match
-                        ? { ...item, aiProgress: progress }
-                        : item;
-                });
-            });
-        });
+            setQueue(prev =>
+                prev.map(item =>
+                    String(item.videoId) === String(videoId)
+                        ? syncProcessingState({
+                            ...item,
+                            aiProgress: Number(progress) || 0,
+                            aiStatus: "processing",
+                            status: "processing"
+                        })
+                        : item
+                )
+            )
+        })
         socket.on("ai-completed", async ({ videoId }) => {
 
             if (!videoId) return
@@ -162,20 +182,18 @@ const Upload = () => {
                 setQueue(prev =>
                     prev.map(item =>
                         String(item.videoId) === String(videoId)
-                            ? {
+                            ? syncProcessingState({
                                 ...item,
-                                status: "completed",
                                 aiProgress: 100,
+                                aiStatus: "completed",
+                                status: "processing",
 
-                                // AI fields from backend
                                 title: item.title.trim() ? item.title : (ai.title ?? ""),
                                 description: item.description.trim()
                                     ? item.description
                                     : (ai.description ?? ""),
-
-                                // optional (if backend later returns them)
                                 tags: ai.tags?.join(", ") ?? ""
-                            }
+                            })
                             : item
                     )
                 )
@@ -198,11 +216,12 @@ const Upload = () => {
                 setQueue(prev =>
                     prev.map(item =>
                         String(item.videoId) === String(videoId)
-                            ? {
+                            ? syncProcessingState({
                                 ...item,
-                                status: "completed",
-                                aiProgress: 100
-                            }
+                                aiProgress: 100,
+                                aiStatus: "completed",
+                                status: "processing"
+                            })
                             : item
                     )
                 )
@@ -214,11 +233,62 @@ const Upload = () => {
             setQueue(prev =>
                 prev.map(item =>
                     String(item.videoId) === String(videoId)
-                        ? { ...item, status: "error" }
+                        ? syncProcessingState({
+                            ...item,
+                            aiProgress: 100,
+                            aiStatus: "failed",
+                            status: "processing"
+                        })
                         : item
                 )
             )
 
+        })
+
+        socket.on("thumbnail-progress", ({ videoId, progress }) => {
+            setQueue(prev =>
+                prev.map(item =>
+                    String(item.videoId) === String(videoId)
+                        ? syncProcessingState({
+                            ...item,
+                            thumbnailProgress: Number(progress) || 0,
+                            thumbnailStatus: "processing",
+                            status: "processing"
+                        })
+                        : item
+                )
+            )
+        })
+
+        socket.on("thumbnail-completed", ({ videoId, thumbnailKey }) => {
+            setQueue(prev =>
+                prev.map(item =>
+                    String(item.videoId) === String(videoId)
+                        ? syncProcessingState({
+                            ...item,
+                            thumbnailKey: thumbnailKey || item.thumbnailKey,
+                            thumbnailProgress: 100,
+                            thumbnailStatus: "completed",
+                            status: "processing"
+                        })
+                        : item
+                )
+            )
+        })
+
+        socket.on("thumbnail-failed", ({ videoId }) => {
+            setQueue(prev =>
+                prev.map(item =>
+                    String(item.videoId) === String(videoId)
+                        ? syncProcessingState({
+                            ...item,
+                            thumbnailProgress: 100,
+                            thumbnailStatus: "failed",
+                            status: "processing"
+                        })
+                        : item
+                )
+            )
         })
 
         return () => {
@@ -227,6 +297,9 @@ const Upload = () => {
             socket.off("ai-progress")
             socket.off("ai-completed")
             socket.off("ai-failed")
+            socket.off("thumbnail-progress")
+            socket.off("thumbnail-completed")
+            socket.off("thumbnail-failed")
         }
 
     }, [])
@@ -284,6 +357,9 @@ const Upload = () => {
 
                     uploadProgress: 0,
                     aiProgress: 0,
+                    thumbnailProgress: 0,
+                    aiStatus: "idle",
+                    thumbnailStatus: "idle",
 
                     speed: 0,
                     status: "waiting",
@@ -400,11 +476,6 @@ const Upload = () => {
                 fileName: item.file.name,
                 fileType: item.file.type,
             });
-            console.log("FULL PRESIGN RESPONSE:", presignRes)
-            console.log("DATA LEVEL 1:", presignRes.data)
-            console.log("DATA LEVEL 2:", presignRes.data.data)
-            console.log("UPLOAD URL VALUE:", presignRes.data?.data?.url)
-            console.log("KEY VALUE:", presignRes.data?.data?.key)
 
             const { uploadUrl, key } = presignRes.data.data;
 
@@ -476,29 +547,22 @@ const Upload = () => {
             });
 
             const videoId = completeRes.data.data.id;
-            console.log("✅ VIDEO CREATED →", {
-                index,
-                videoId,
-            });
 
             /* ---------- 4. FINAL STATE ---------- */
 
             setQueue(prev => {
-                console.log("🛠️ SETTING VIDEO ID →", {
-                    index,
-                    videoId,
-                    prev,
-                });
-
                 return prev.map((item, i) =>
                     i === index
-                        ? {
+                        ? syncProcessingState({
                             ...item,
                             videoId,
                             thumbnailKey: thumbnailKey ?? item.thumbnailKey,
+                            thumbnailProgress: thumbnailKey ? 100 : Math.max(item.thumbnailProgress, 5),
+                            aiStatus: "processing",
+                            thumbnailStatus: thumbnailKey ? "completed" : "processing",
                             status: "processing",
                             uploadProgress: 100,
-                        }
+                        })
                         : item
                 );
             });
@@ -522,6 +586,7 @@ const Upload = () => {
         try {
             setCreatingChannel(true)
             setChannelError("")
+            setChannelSuggestions([])
 
             const res = await api.post("/channel", {
                 name: trimmedName,
@@ -529,10 +594,12 @@ const Upload = () => {
             })
 
             setChannel(res.data?.data || null)
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const responseData = axios.isAxiosError(err) ? err.response?.data : undefined
             const msg =
-                err?.response?.data?.message || "Failed to create channel."
+                responseData?.message || "Failed to create channel."
             setChannelError(msg)
+            setChannelSuggestions(Array.isArray(responseData?.suggestions) ? responseData.suggestions : [])
         } finally {
             setCreatingChannel(false)
         }
@@ -641,6 +708,26 @@ const Upload = () => {
 
                             {channelError && (
                                 <p className="text-sm text-red-400">{channelError}</p>
+                            )}
+
+                            {channelSuggestions.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-gray-400">
+                                        Try one of these related names:
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {channelSuggestions.map((suggestion) => (
+                                            <button
+                                                key={suggestion}
+                                                type="button"
+                                                onClick={() => setChannelNameInput(suggestion)}
+                                                className="rounded-full bg-white/10 hover:bg-white/15 px-3 py-1 text-xs text-gray-200"
+                                            >
+                                                {suggestion}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             )}
 
                             <div className="flex justify-end">
@@ -756,21 +843,38 @@ const Upload = () => {
 
                                     </div>
 
-                                    {item.status === "processing" && (
+                                    {(item.status === "processing" || item.aiStatus !== "idle" || item.thumbnailStatus !== "idle") && (
 
-                                        <div className="mt-4">
+                                        <div className="mt-4 grid gap-4 md:grid-cols-2">
 
-                                            <p className="text-sm text-gray-400 mb-1">
-                                                AI Processing {item.aiProgress}%
-                                            </p>
+                                            <div>
+                                                <p className="text-sm text-gray-400 mb-1">
+                                                    AI Worker {item.aiProgress}% {item.aiStatus === "completed" ? "• Done" : item.aiStatus === "failed" ? "• Failed" : "• Live"}
+                                                </p>
 
-                                            <div className="w-full bg-gray-700/40 h-2 rounded-full overflow-hidden">
+                                                <div className="w-full bg-gray-700/40 h-2 rounded-full overflow-hidden">
 
-                                                <div
-                                                    className="bg-purple-500 h-2 transition-all"
-                                                    style={{ width: `${item.aiProgress}%` }}
-                                                />
+                                                    <div
+                                                        className="bg-purple-500 h-2 transition-all"
+                                                        style={{ width: `${item.aiProgress}%` }}
+                                                    />
 
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <p className="text-sm text-gray-400 mb-1">
+                                                    Thumbnail Worker {item.thumbnailProgress}% {item.thumbnailStatus === "completed" ? "• Done" : item.thumbnailStatus === "failed" ? "• Failed" : "• Live"}
+                                                </p>
+
+                                                <div className="w-full bg-gray-700/40 h-2 rounded-full overflow-hidden">
+
+                                                    <div
+                                                        className="bg-amber-500 h-2 transition-all"
+                                                        style={{ width: `${item.thumbnailProgress}%` }}
+                                                    />
+
+                                                </div>
                                             </div>
 
                                         </div>

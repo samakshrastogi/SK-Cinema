@@ -37,6 +37,7 @@ new Worker(
     },
     {
         connection: redisConnection as any,
+        skipVersionCheck: true,
         concurrency: 5
     }
 )

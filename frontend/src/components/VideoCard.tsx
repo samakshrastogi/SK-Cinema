@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Play } from "lucide-react"
 import UserAvatar from "@/components/UserAvatar"
@@ -30,6 +31,7 @@ interface Props {
 const VideoCard = ({ video }: Props) => {
 
     const navigate = useNavigate()
+    const [renderedAt] = useState(() => Date.now())
     const targetId = video.publicId ?? String(video.id ?? "")
     const isPortrait = video.orientation === "PORTRAIT"
 
@@ -52,7 +54,7 @@ const VideoCard = ({ video }: Props) => {
 
         const diffInSeconds = Math.max(
             0,
-            Math.floor((Date.now() - new Date(date).getTime()) / 1000)
+            Math.floor((renderedAt - new Date(date).getTime()) / 1000)
         )
 
         if (diffInSeconds < 60) return "just now"

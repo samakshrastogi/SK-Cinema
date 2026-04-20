@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import AppLayout from "@/layouts/AppLayout"
 import { api } from "@/api/axios"
@@ -59,11 +59,6 @@ const OrganizationPage = () => {
         setMemberships(res.data?.data?.memberships || [])
         setActiveOrganizationId(res.data?.data?.access?.activeOrganizationId ?? null)
     }
-
-    const approvedMemberships = useMemo(
-        () => memberships.filter((m) => m.status === "APPROVED"),
-        [memberships]
-    )
 
     useEffect(() => {
         load().catch((err: ApiError) => {
@@ -498,8 +493,20 @@ const OrganizationPage = () => {
                                                 }}
                                                 className="rounded-lg bg-blue-600 hover:bg-blue-500 transition px-3 py-1 text-xs font-medium"
                                             >
-                                                Visit
+                                                Open
                                             </button>
+
+                                            {m.role === "ADMIN" && (
+                                                <button
+                                                    onClick={async () => {
+                                                        await switchMode(m.organization.id)
+                                                        navigate("/organization/dashboard")
+                                                    }}
+                                                    className="rounded-lg bg-amber-600 hover:bg-amber-500 transition px-3 py-1 text-xs font-medium"
+                                                >
+                                                    Open Dashboard
+                                                </button>
+                                            )}
 
                                         </div>
                                     )}
@@ -525,33 +532,6 @@ const OrganizationPage = () => {
 
                 </div>
 
-                {approvedMemberships.some((m) => m.role === "ADMIN") && (
-                    <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-amber-500/5 backdrop-blur-xl p-5 shadow-md">
-
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-                            {/* TEXT */}
-                            <div>
-                                <h2 className="text-lg font-semibold text-white">
-                                    Admin Dashboard Access
-                                </h2>
-                                <p className="text-xs text-gray-400 mt-1">
-                                    You have admin privileges. Manage members, content, and organization settings.
-                                </p>
-                            </div>
-
-                            {/* CTA BUTTON */}
-                            <button
-                                onClick={() => navigate("/organization/dashboard")}
-                                className="rounded-lg bg-amber-600 hover:bg-amber-500 transition px-4 py-2 text-sm font-medium shadow-md active:scale-95"
-                            >
-                                Open Dashboard
-                            </button>
-
-                        </div>
-
-                    </div>
-                )}
             </div>
         </AppLayout>
     )
