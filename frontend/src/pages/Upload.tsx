@@ -8,7 +8,7 @@ import { SOCKET_URL } from "@/config/env"
 import AppLayout from "@/layouts/AppLayout"
 import SpritesheetPicker from "@/components/SpritesheetPicker"
 import AIGenerateAction from "@/components/AIGenerateAction"
-import { CheckCircle2, ChevronDown, Cloud, Database, FileVideo, UploadCloud } from "lucide-react"
+import { CheckCircle2, ChevronDown, Cloud, Database, FileVideo, Loader2, UploadCloud } from "lucide-react"
 
 interface Channel {
     id: string
@@ -891,9 +891,14 @@ const Upload = () => {
     if (loadingChannel) {
 
         return (
-            <div className="min-h-screen flex items-center justify-center text-white">
-                Loading...
-            </div>
+            <AppLayout>
+                <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.055] px-5 py-4 text-sm font-semibold text-cyan-100 shadow-[0_14px_42px_rgba(4,7,20,0.22)] backdrop-blur-2xl">
+                        <Loader2 size={18} className="animate-spin" />
+                        Preparing upload studio...
+                    </div>
+                </div>
+            </AppLayout>
         )
 
     }

@@ -60,6 +60,10 @@ const getStoredUser = () => {
 
 }
 
+const getStoredLoginId = () =>
+    localStorage.getItem("loginId") ||
+    sessionStorage.getItem("loginId")
+
 /* ---------------- PROVIDER ---------------- */
 
 export const AuthProvider = ({
@@ -70,14 +74,29 @@ export const AuthProvider = ({
 
     const [token, setToken] = useState<string | null>(getStoredToken())
     const [user, setUser] = useState<User | null>(getStoredUser())
-    const [loginId, setLoginId] = useState<string | null>(() => {
-        const stored = localStorage.getItem("loginId") || sessionStorage.getItem("loginId")
-        return stored || null
-    })
+    const [loginId, setLoginId] = useState<string | null>(() => getStoredLoginId())
 
     useEffect(() => {
         setAuthToken(token)
     }, [token])
+
+    useEffect(() => {
+        const handleStorageChange = (event: StorageEvent) => {
+            if (
+                event.storageArea !== localStorage ||
+                !["token", "user", "loginId", "sessionStart"].includes(event.key || "")
+            ) {
+                return
+            }
+
+            setToken(getStoredToken())
+            setUser(getStoredUser())
+            setLoginId(getStoredLoginId())
+        }
+
+        window.addEventListener("storage", handleStorageChange)
+        return () => window.removeEventListener("storage", handleStorageChange)
+    }, [])
 
     useEffect(() => {
         if (!token) return
@@ -167,17 +186,21 @@ export const AuthProvider = ({
     const login = (
         token: string,
         user: User,
-        remember = false,
+        _remember = false,
         loginIdValue?: string | null
     ) => {
 
-        const storage = remember ? localStorage : sessionStorage
+        sessionStorage.removeItem("token")
+        sessionStorage.removeItem("user")
+        sessionStorage.removeItem("loginId")
+        sessionStorage.removeItem("sessionStart")
+        localStorage.removeItem("loginId")
 
-        storage.setItem("token", token)
-        storage.setItem("user", JSON.stringify(user))
-        storage.setItem("sessionStart", String(Date.now()))
+        localStorage.setItem("token", token)
+        localStorage.setItem("user", JSON.stringify(user))
+        localStorage.setItem("sessionStart", String(Date.now()))
         if (loginIdValue) {
-            storage.setItem("loginId", String(loginIdValue))
+            localStorage.setItem("loginId", String(loginIdValue))
             setLoginId(loginIdValue)
         }
 
@@ -189,6 +212,12 @@ export const AuthProvider = ({
     /* ---------------- GOOGLE OAUTH ---------------- */
 
     const setAuthFromOAuth = (token: string, user: User, loginIdParam?: string | null) => {
+
+        sessionStorage.removeItem("token")
+        sessionStorage.removeItem("user")
+        sessionStorage.removeItem("loginId")
+        sessionStorage.removeItem("sessionStart")
+        localStorage.removeItem("loginId")
 
         localStorage.setItem("token", token)
         localStorage.setItem("user", JSON.stringify(user))
@@ -208,11 +237,7 @@ export const AuthProvider = ({
     const updateUser = (updatedUser: User) => {
 
         setUser(updatedUser)
-
-        const storage =
-            localStorage.getItem("token") ? localStorage : sessionStorage
-
-        storage.setItem("user", JSON.stringify(updatedUser))
+        localStorage.setItem("user", JSON.stringify(updatedUser))
 
     }
 
