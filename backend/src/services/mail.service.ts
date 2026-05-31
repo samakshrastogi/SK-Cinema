@@ -1,8 +1,13 @@
 import nodemailer from "nodemailer"
 import SMTPTransport from "nodemailer/lib/smtp-transport"
 
-const EMAIL_FROM = process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@localhost"
+const EMAIL_FROM =
+    process.env.EMAIL_FROM ||
+    process.env.EMAIL_USER ||
+    (process.env.RESEND_API_KEY ? "onboarding@resend.dev" : "no-reply@localhost")
 const EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO || EMAIL_FROM
+const RESEND_API_KEY = process.env.RESEND_API_KEY
+const RESEND_API_URL = process.env.RESEND_API_URL || "https://api.resend.com/emails"
 const SMTP_HOST = process.env.SMTP_HOST
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587)
 const SMTP_SECURE = process.env.SMTP_SECURE === "true"
@@ -13,7 +18,7 @@ const hasSmtpConfig = Boolean(SMTP_HOST && SMTP_USER && SMTP_PASS)
 
 export type MailSendResult = {
     delivered: boolean
-    mode: "smtp" | "console"
+    mode: "resend" | "smtp" | "console"
 }
 
 type BrandedEmailOptions = {
@@ -173,6 +178,43 @@ type SendEmailOptions = {
     text?: string
 }
 
+const sendWithResend = async ({
+    to,
+    subject,
+    html,
+    from,
+    replyTo,
+    text,
+}: Required<Pick<SendEmailOptions, "to" | "subject" | "html" | "from" | "replyTo">> &
+    Pick<SendEmailOptions, "text">) => {
+    if (!RESEND_API_KEY) return null
+
+    const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            from,
+            to,
+            subject,
+            html,
+            text,
+            reply_to: replyTo,
+        }),
+    })
+
+    if (!response.ok) {
+        const responseBody = await response.text().catch(() => "")
+        throw new Error(
+            `Resend email failed with ${response.status}: ${responseBody || response.statusText}`
+        )
+    }
+
+    return { delivered: true, mode: "resend" as const }
+}
+
 export const sendEmail = async ({
     to,
     subject,
@@ -181,10 +223,21 @@ export const sendEmail = async ({
     replyTo = `"SK-MediaFlow Support" <${EMAIL_REPLY_TO}>`,
     text,
 }: SendEmailOptions): Promise<MailSendResult> => {
+    const resendResult = await sendWithResend({
+        to,
+        subject,
+        html,
+        from,
+        replyTo,
+        text,
+    })
+
+    if (resendResult) return resendResult
+
     const smtpTransporter = getTransporter()
 
     if (!smtpTransporter) {
-        console.info("[mail:console] SMTP is not configured. Email payload:", {
+        console.info("[mail:console] Email provider is not configured. Email payload:", {
             to,
             subject,
             from,

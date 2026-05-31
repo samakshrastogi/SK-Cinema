@@ -53,7 +53,7 @@ export interface VerificationFlowData {
     otpExpiresAt?: string
     resendCooldownSeconds?: number
     resendCountRemaining?: number
-    emailDeliveryMode?: "smtp" | "console"
+    emailDeliveryMode?: "resend" | "smtp" | "console"
 }
 
 export const getSettings = async (): Promise<ApiResponse<SettingsData>> => {

@@ -12,8 +12,6 @@ import {
     normalizeEmail,
     type LoginSessionMeta,
 } from "./auth.utils"
-const EMAIL_FROM = process.env.EMAIL_FROM as string
-const EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO as string
 const JWT_SECRET = process.env.JWT_SECRET as string
 const CLIENT_URL = process.env.CLIENT_URL
 if (!JWT_SECRET) throw new Error("JWT_SECRET not defined")
@@ -271,8 +269,6 @@ const sendOTPEmail = async (
                                     </tr>`
 
     return sendEmail({
-        from: `"SK-MediaFlow Team" <${EMAIL_FROM}>`,
-        replyTo: `"SK-MediaFlow Support" <${EMAIL_REPLY_TO}>`,
         to: email,
         subject: "Verify your SK-MediaFlow email",
         text: `Your SK-MediaFlow verification code is ${otp}. It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
@@ -309,7 +305,6 @@ const sendResetEmail = async (
                                     </tr>`
 
     return sendEmail({
-        from: `"SK-MediaFlow" <${EMAIL_FROM}>`,
         to: email,
         subject: "Reset your SK-MediaFlow password",
         text: `Reset your SK-MediaFlow password using this link: ${resetLink}`,

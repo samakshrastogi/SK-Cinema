@@ -22,7 +22,7 @@ export interface LoginData {
 
 export interface RegisterData {
     email?: string
-    emailDeliveryMode?: "smtp" | "console"
+    emailDeliveryMode?: "resend" | "smtp" | "console"
     otpExpiresAt?: string
     resendCooldownSeconds?: number
     resendCountRemaining?: number
@@ -30,7 +30,7 @@ export interface RegisterData {
 
 export interface ForgotPasswordData {
     resetLink?: string
-    emailDeliveryMode?: "smtp" | "console"
+    emailDeliveryMode?: "resend" | "smtp" | "console"
     cooldownSeconds?: number
 }
 
