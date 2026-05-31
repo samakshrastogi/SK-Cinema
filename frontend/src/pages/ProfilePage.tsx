@@ -1389,26 +1389,26 @@ const EditVideoModal = ({
                     </div>
                 </div>
 
-                <div className="flex shrink-0 flex-col gap-3 border-t border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+                <div className="grid shrink-0 gap-2 border-t border-white/10 px-4 py-3 sm:grid-cols-[auto_1fr] sm:items-center sm:px-6 sm:py-4">
                     <button
                         onClick={() => setConfirmDelete(true)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-red-500/22 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/18"
+                        className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-red-500/22 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/18 sm:w-auto sm:justify-start sm:px-4"
                     >
                         <Trash2 size={16} />
                         Delete Video
                     </button>
 
-                    <div className="flex justify-end gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
                         <button
                             onClick={onClose}
-                            className="rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/16"
+                            className="min-h-9 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/16 sm:px-4"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={onSave}
                             disabled={savingVideo}
-                            className="rounded-xl bg-linear-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(168,85,247,0.35)] transition hover:brightness-110 disabled:opacity-60"
+                            className="min-h-9 rounded-xl bg-linear-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-3 py-2 text-xs font-semibold text-white shadow-[0_12px_30px_rgba(168,85,247,0.35)] transition hover:brightness-110 disabled:opacity-60 sm:px-5 sm:text-sm"
                         >
                             {savingVideo ? "Saving..." : "Save Changes"}
                         </button>

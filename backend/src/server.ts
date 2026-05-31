@@ -6,6 +6,7 @@ import "./config/env";
 import app from "./app";
 import { setSocketServer } from "./services/realtime.service";
 import { logger } from "./utils/logger";
+import { corsOrigin } from "./config/cors";
 
 const PORT = process.env.PORT;
 
@@ -14,7 +15,7 @@ const server = http.createServer(app);
 export const io = new Server(server, {
   path: "/socket.io",
   cors: {
-    origin: process.env.CLIENT_URL!,
+    origin: corsOrigin,
     methods: ["GET", "POST"],
     credentials: true
   }

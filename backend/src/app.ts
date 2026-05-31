@@ -27,6 +27,7 @@ import {
 import { prisma } from "./config/prisma"
 import { s3 } from "./config/s3"
 import { logger } from "./utils/logger"
+import { CLIENT_URL, allowedCorsOrigins, corsOrigin } from "./config/cors"
 
 import "./workers"
 
@@ -34,20 +35,19 @@ const app = express()
 app.set("trust proxy", 1)
 
 const JWT_SECRET = process.env.JWT_SECRET!
-const CLIENT_URL = process.env.CLIENT_URL!
-
 if (!JWT_SECRET) {
     throw new Error("JWT_SECRET not defined")
 }
 
 logger.info("APP", "Express application initialized", {
     clientUrl: CLIENT_URL,
+    allowedCorsOrigins,
     nodeEnv: process.env.NODE_ENV || "development"
 })
 
 app.use(
     cors({
-        origin: CLIENT_URL,
+        origin: corsOrigin,
         credentials: true
     })
 )

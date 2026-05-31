@@ -489,7 +489,7 @@ const PortraitPlayer = () => {
 
             <main className="px-3 pt-[76px] pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-6 xl:px-6 2xl:px-8">
                 <div className="grid w-full items-start gap-4 sm:gap-6 xl:gap-8 lg:grid-cols-[minmax(280px,420px)_minmax(0,1fr)_120px]">
-                    <section className="order-3 h-fit space-y-5 rounded-[1.25rem] border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-4 shadow-lg backdrop-blur-xl sm:rounded-2xl sm:p-5 lg:order-1">
+                    <section className="order-2 h-fit space-y-5 rounded-[1.25rem] border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-4 shadow-lg backdrop-blur-xl sm:rounded-2xl sm:p-5 lg:order-1">
 
                         {/* TITLE */}
                         <div className="space-y-2">
@@ -609,87 +609,9 @@ const PortraitPlayer = () => {
                             </div>
                         </div>
 
-
-                        {/* COMMENTS SECTION */}
-                        <div className="scroll-mt-24 w-full rounded-[1.25rem] border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-4 shadow-lg backdrop-blur-xl sm:rounded-2xl sm:p-5">
-
-                            {/* HEADER */}
-                            <div className="mb-4 flex items-center justify-between">
-                                <h2 className="text-lg font-semibold text-white">Comments</h2>
-                                <span className="text-xs text-gray-400">{comments.length} total</span>
-                            </div>
-
-                            {/* COMMENT LIST */}
-                            <div
-                                ref={commentsRef}
-                                className="flex flex-col gap-3 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10"
-                            >
-                                {comments.map((c) => {
-                                    const isMine = c.username === user?.username
-                                    const commenterLabel = c.channelName || c.username || "Unknown"
-
-                                    return (
-                                        <div
-                                            key={c.id}
-                                            className={`flex ${isMine ? "justify-end" : "justify-start"}`}
-                                        >
-                                            <div
-                                                className={`max-w-[92%] rounded-2xl px-4 py-2.5 text-sm shadow-md transition sm:max-w-[80%] ${isMine
-                                                    ? "bg-purple-600 text-white"
-                                                    : "bg-black/40 border border-white/10"
-                                                    }`}
-                                            >
-
-                                                {/* META */}
-                                                <div className="text-[11px] text-gray-300 mb-1 flex gap-2 items-center">
-                                                    <span className="font-medium">{commenterLabel}</span>
-                                                    <span>•</span>
-                                                    <span>{timeAgo(c.createdAt)}</span>
-                                                </div>
-
-                                                {/* TEXT */}
-                                                <ExpandableCommentText text={c.commentText} />
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-
-                                {comments.length === 0 && (
-                                    <p className="text-sm text-gray-400 text-center py-6">
-                                        No comments yet. Start the conversation 👇
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* INPUT */}
-                            <div className="mt-4 flex items-center gap-2">
-
-                                <input
-                                    value={commentInput}
-                                    onChange={(e) => setCommentInput(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                            e.preventDefault()
-                                            submitComment()
-                                        }
-                                    }}
-                                    placeholder="Write a comment..."
-                                    className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none transition focus:border-purple-500 focus:ring-1 focus:ring-purple-500 sm:px-4"
-                                />
-
-                                <button
-                                    onClick={submitComment}
-                                    className="shrink-0 rounded-xl bg-purple-600 px-3 py-2.5 text-sm font-medium shadow-md transition hover:bg-purple-500 active:scale-95 sm:px-5"
-                                >
-                                    Send
-                                </button>
-
-                            </div>
-                        </div>
-
                     </section>
 
-                    <aside ref={playlistMenuRef} className="relative order-2 flex flex-col gap-3 lg:order-3 lg:sticky lg:top-28 lg:items-center lg:gap-4">
+                    <aside ref={playlistMenuRef} className="relative order-3 flex flex-col gap-3 lg:order-3 lg:sticky lg:top-28 lg:items-center lg:gap-4">
 
                         {/* ACTION STACK */}
                         <div className="grid w-full grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-white/5 p-2 shadow-lg backdrop-blur-xl lg:flex lg:w-auto lg:flex-col lg:gap-3">
@@ -796,6 +718,83 @@ const PortraitPlayer = () => {
                             </div>
                         )}
                     </aside>
+
+                    {/* COMMENTS SECTION */}
+                    <section className="order-4 scroll-mt-24 w-full rounded-[1.25rem] border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-4 shadow-lg backdrop-blur-xl sm:rounded-2xl sm:p-5 lg:col-start-2 lg:order-4">
+
+                        {/* HEADER */}
+                        <div className="mb-4 flex items-center justify-between">
+                            <h2 className="text-lg font-semibold text-white">Comments</h2>
+                            <span className="text-xs text-gray-400">{comments.length} total</span>
+                        </div>
+
+                        {/* COMMENT LIST */}
+                        <div
+                            ref={commentsRef}
+                            className="flex flex-col gap-3 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10"
+                        >
+                            {comments.map((c) => {
+                                const isMine = c.username === user?.username
+                                const commenterLabel = c.channelName || c.username || "Unknown"
+
+                                return (
+                                    <div
+                                        key={c.id}
+                                        className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                                    >
+                                        <div
+                                            className={`max-w-[92%] rounded-2xl px-4 py-2.5 text-sm shadow-md transition sm:max-w-[80%] ${isMine
+                                                ? "bg-purple-600 text-white"
+                                                : "bg-black/40 border border-white/10"
+                                                }`}
+                                        >
+
+                                            {/* META */}
+                                            <div className="text-[11px] text-gray-300 mb-1 flex gap-2 items-center">
+                                                <span className="font-medium">{commenterLabel}</span>
+                                                <span>•</span>
+                                                <span>{timeAgo(c.createdAt)}</span>
+                                            </div>
+
+                                            {/* TEXT */}
+                                            <ExpandableCommentText text={c.commentText} />
+                                        </div>
+                                    </div>
+                                )
+                            })}
+
+                            {comments.length === 0 && (
+                                <p className="text-sm text-gray-400 text-center py-6">
+                                    No comments yet. Start the conversation 👇
+                                </p>
+                            )}
+                        </div>
+
+                        {/* INPUT */}
+                        <div className="mt-4 flex items-center gap-2">
+
+                            <input
+                                value={commentInput}
+                                onChange={(e) => setCommentInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault()
+                                        submitComment()
+                                    }
+                                }}
+                                placeholder="Write a comment..."
+                                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm outline-none transition focus:border-purple-500 focus:ring-1 focus:ring-purple-500 sm:px-4"
+                            />
+
+                            <button
+                                onClick={submitComment}
+                                className="shrink-0 rounded-xl bg-purple-600 px-3 py-2.5 text-sm font-medium shadow-md transition hover:bg-purple-500 active:scale-95 sm:px-5"
+                            >
+                                Send
+                            </button>
+
+                        </div>
+                    </section>
                 </div>
             </main>
             <MobileBottomNav />
