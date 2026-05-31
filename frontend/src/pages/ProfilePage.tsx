@@ -1242,19 +1242,19 @@ const EditVideoModal = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[80] flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.28),transparent_32%),radial-gradient(circle_at_bottom,rgba(59,130,246,0.16),transparent_28%),rgba(10,11,20,0.46)] px-3 py-4 backdrop-blur-lg sm:px-4"
+        className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.28),transparent_32%),radial-gradient(circle_at_bottom,rgba(59,130,246,0.16),transparent_28%),rgba(10,11,20,0.46)] px-3 py-3 backdrop-blur-lg sm:items-center sm:px-4 sm:py-4"
         onClick={onClose}
     >
         <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-[24px] border border-white/14 bg-[linear-gradient(145deg,rgba(62,37,120,0.94),rgba(26,24,55,0.96)_42%,rgba(15,18,38,0.98))] shadow-[0_26px_90px_rgba(6,8,20,0.4)] sm:rounded-[30px]"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[24px] border border-white/14 bg-[linear-gradient(145deg,rgba(62,37,120,0.94),rgba(26,24,55,0.96)_42%,rgba(15,18,38,0.98))] shadow-[0_26px_90px_rgba(6,8,20,0.4)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[30px]"
             onClick={(event) => event.stopPropagation()}
         >
-            <div className="flex flex-col">
-                <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
-                    <div>
+            <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
+                    <div className="min-w-0">
                         <h2 className="text-2xl font-semibold text-white">Edit Video</h2>
                         <p className="mt-1 text-sm text-purple-100/65">
                             Fine-tune title, description, and thumbnail for{" "}
@@ -1263,7 +1263,7 @@ const EditVideoModal = ({
                     </div>
                     <button
                         onClick={onClose}
-                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/8 text-gray-300 transition hover:bg-white/14 hover:text-white"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/8 text-gray-300 transition hover:bg-white/14 hover:text-white"
                     >
                         ✕
                     </button>
@@ -1389,7 +1389,7 @@ const EditVideoModal = ({
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+                <div className="flex shrink-0 flex-col gap-3 border-t border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
                     <button
                         onClick={() => setConfirmDelete(true)}
                         className="inline-flex items-center gap-2 rounded-xl border border-red-500/22 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/18"
