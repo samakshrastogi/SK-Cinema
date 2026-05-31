@@ -4,7 +4,7 @@ import SMTPTransport from "nodemailer/lib/smtp-transport"
 const EMAIL_FROM =
     process.env.EMAIL_FROM ||
     process.env.EMAIL_USER ||
-    (process.env.RESEND_API_KEY ? "onboarding@resend.dev" : "no-reply@localhost")
+    "no-reply@localhost"
 const EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO || EMAIL_FROM
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const RESEND_API_URL = process.env.RESEND_API_URL || "https://api.resend.com/emails"
