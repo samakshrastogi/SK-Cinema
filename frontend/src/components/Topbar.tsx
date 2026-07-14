@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Bell } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
+import { CENTRAL_PROFILE_URL } from "@/api/centralAuth"
 import { useNavigate } from "react-router-dom"
 import UserAvatar from "@/components/UserAvatar"
 import { api } from "@/api/axios"
@@ -318,14 +319,8 @@ const Topbar = () => {
                         <div className="absolute right-0 mt-3 w-[min(15rem,calc(100vw-2rem))] rounded-xl border border-white/10 bg-[#111827]/80 p-4 shadow-xl backdrop-blur-xl">
                             <p className="font-semibold text-lg">{user.name}</p>
 
-                            <p className="text-sm text-gray-400">
-                                Joined:{" "}
-                                {user.createdAt
-                                    ? new Date(user.createdAt).toLocaleDateString()
-                                    : "N/A"}
-                            </p>
-
-                            <div className="mt-4 grid grid-cols-2 gap-2">
+                            <p className="mt-1 truncate text-sm text-gray-400">{user.email}</p>
+                            <div className="mt-4 grid gap-2">
                                 <button
                                     onClick={() => {
                                         setDropdownOpen(false)
@@ -335,6 +330,13 @@ const Topbar = () => {
                                 >
                                     View Profile
                                 </button>
+
+                                <a
+                                    href={CENTRAL_PROFILE_URL}
+                                    className="rounded-lg bg-sky-600 p-2 text-center text-sm transition hover:bg-sky-700"
+                                >
+                                    Manage your SK Account
+                                </a>
 
                                 <button
                                     onClick={handleLogout}

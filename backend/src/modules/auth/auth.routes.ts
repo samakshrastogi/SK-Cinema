@@ -10,6 +10,7 @@ import {
     resetUserPassword
 } from "./auth.controller"
 import { authenticate, AuthRequest } from "../../middlewares/auth.middleware"
+import { centralLogin } from "./central.controller"
 
 const router = Router()
 
@@ -19,6 +20,7 @@ router.post("/register", register)
 router.post("/verify-otp", verifyEmailOTP)
 router.post("/resend-otp", resendEmailOTP)
 router.post("/login", login)
+router.post("/central", centralLogin)
 router.post("/session-end", endSession)
 router.post("/forgot-password", forgotPassword)
 router.post("/reset-password", resetUserPassword)

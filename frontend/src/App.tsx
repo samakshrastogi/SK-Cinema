@@ -1,12 +1,10 @@
+import { useEffect } from "react"
 import { Routes, Route, Navigate } from "react-router-dom"
 
 import Home from "@/pages/Home"
-import Auth from "@/pages/Auth"
 import Upload from "@/pages/Upload"
 import VideoPlayer from "@/pages/VideoPlayer"
 import S3Import from "@/pages/S3Import"
-import OAuthSuccess from "@/pages/OAuthSuccess"
-import ResetPassword from "@/pages/ResetPassword"
 import FavouritesPage from "@/pages/FavouritesPage"
 import PlaylistPage from "@/pages/PlaylistPage"
 import SearchPage from "@/pages/Search"
@@ -19,17 +17,30 @@ import SettingsPage from "@/pages/SettingsPage"
 import MainLayout from "@/layouts/MainLayout"
 import ProtectedRoute from "@/routes/ProtectedRoute"
 import ProfilePage from "@/pages/ProfilePage"
+import { useAuth } from "@/context/AuthContext"
+import { redirectToCentralLogin } from "@/api/centralAuth"
 
+
+function CentralLoginRedirect() {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) redirectToCentralLogin()
+  }, [isAuthenticated, isLoading])
+
+  if (isAuthenticated) return <Navigate to="/home" replace />
+  return <div className="min-h-screen grid place-items-center bg-[#050816] text-white font-semibold">Connecting to SK Central...</div>
+}
 function App() {
   return (
     <Routes>
 
       <Route path="/" element={<Navigate to="/login" replace />} />
 
-      <Route path="/login" element={<Auth />} />
-      <Route path="/register" element={<Auth />} />
-      <Route path="/oauth-success" element={<OAuthSuccess />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/login" element={<CentralLoginRedirect />} />
+      <Route path="/register" element={<CentralLoginRedirect />} />
+      <Route path="/oauth-success" element={<CentralLoginRedirect />} />
+      <Route path="/reset-password" element={<CentralLoginRedirect />} />
 
       <Route
         path="/video/:publicId"

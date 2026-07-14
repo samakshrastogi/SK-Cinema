@@ -7,6 +7,7 @@ import {
 } from "react"
 import { api, clearStoredAuth, setAuthToken } from "@/api/axios"
 import { API_URL } from "@/config/env"
+import { logoutFromCentral, requestCentralAppToken } from "@/api/centralAuth"
 
 interface User {
     id: string
@@ -28,6 +29,7 @@ interface AuthContextType {
     setAuthFromOAuth: (token: string, user: User, loginId?: string | null) => void
     updateUser: (user: User) => void
     isAuthenticated: boolean
+    isLoading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -75,6 +77,39 @@ export const AuthProvider = ({
     const [token, setToken] = useState<string | null>(getStoredToken())
     const [user, setUser] = useState<User | null>(getStoredUser())
     const [loginId, setLoginId] = useState<string | null>(() => getStoredLoginId())
+    const [isLoading, setIsLoading] = useState(!getStoredToken())
+
+
+    useEffect(() => {
+        if (getStoredToken()) {
+            setIsLoading(false)
+            return
+        }
+
+        let cancelled = false
+        const connectCentral = async () => {
+            try {
+                const centralToken = await requestCentralAppToken()
+                const response = await api.post("/auth/central", { token: centralToken })
+                const data = response.data.data
+                if (cancelled) return
+                localStorage.setItem("token", data.token)
+                localStorage.setItem("user", JSON.stringify(data.user))
+                localStorage.setItem("loginId", data.loginId)
+                localStorage.setItem("sessionStart", String(Date.now()))
+                setAuthToken(data.token)
+                setToken(data.token)
+                setUser(data.user)
+                setLoginId(data.loginId)
+            } catch {
+                // Protected routes send unauthenticated users to the Central login handoff.
+            } finally {
+                if (!cancelled) setIsLoading(false)
+            }
+        }
+        void connectCentral()
+        return () => { cancelled = true }
+    }, [])
 
     useEffect(() => {
         setAuthToken(token)
@@ -107,10 +142,27 @@ export const AuthProvider = ({
             try {
                 await api.get("/auth/session")
             } catch {
-                if (!cancelled && !getStoredToken()) {
+                if (!cancelled) {
+                    clearStoredAuth()
                     setToken(null)
                     setUser(null)
                     setLoginId(null)
+                    try {
+                        const centralToken = await requestCentralAppToken()
+                        const response = await api.post("/auth/central", { token: centralToken })
+                        const data = response.data.data
+                        if (cancelled) return
+                        localStorage.setItem("token", data.token)
+                        localStorage.setItem("user", JSON.stringify(data.user))
+                        localStorage.setItem("loginId", data.loginId)
+                        localStorage.setItem("sessionStart", String(Date.now()))
+                        setAuthToken(data.token)
+                        setToken(data.token)
+                        setUser(data.user)
+                        setLoginId(data.loginId)
+                    } catch {
+                        // The login route performs the Central handoff when no Central session exists.
+                    }
                 }
             }
         }
@@ -267,6 +319,7 @@ export const AuthProvider = ({
             // ignore
         }
 
+        await logoutFromCentral()
         clearStoredAuth()
         setToken(null)
         setUser(null)
@@ -284,6 +337,7 @@ export const AuthProvider = ({
         setAuthFromOAuth,
         updateUser,
         isAuthenticated: !!token,
+        isLoading,
     }
 
     return (
