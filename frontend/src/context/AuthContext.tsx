@@ -7,7 +7,7 @@ import {
 } from "react"
 import { api, clearStoredAuth, setAuthToken } from "@/api/axios"
 import { API_URL } from "@/config/env"
-import { logoutFromCentral, requestCentralAppToken } from "@/api/centralAuth"
+import { getCentralSessionState, redirectToCentralLogin, requestCentralAppToken } from "@/api/centralAuth"
 
 interface User {
     id: string
@@ -115,6 +115,36 @@ export const AuthProvider = ({
         setAuthToken(token)
     }, [token])
 
+    useEffect(() => {
+        if (!token) return
+        let checkInFlight = false
+        const verifyCentralSession = async () => {
+            if (checkInFlight) return
+            checkInFlight = true
+            const active = await getCentralSessionState()
+            checkInFlight = false
+            if (active === false) {
+                clearStoredAuth()
+                setToken(null)
+                setUser(null)
+                setLoginId(null)
+                redirectToCentralLogin()
+            }
+        }
+        const onVisibilityChange = () => {
+            if (document.visibilityState === "visible") void verifyCentralSession()
+        }
+
+        void verifyCentralSession()
+        window.addEventListener("focus", verifyCentralSession)
+        document.addEventListener("visibilitychange", onVisibilityChange)
+        const interval = window.setInterval(verifyCentralSession, 30_000)
+        return () => {
+            window.removeEventListener("focus", verifyCentralSession)
+            document.removeEventListener("visibilitychange", onVisibilityChange)
+            window.clearInterval(interval)
+        }
+    }, [token])
     useEffect(() => {
         const handleStorageChange = (event: StorageEvent) => {
             if (
@@ -319,7 +349,6 @@ export const AuthProvider = ({
             // ignore
         }
 
-        await logoutFromCentral()
         clearStoredAuth()
         setToken(null)
         setUser(null)

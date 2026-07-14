@@ -49,7 +49,7 @@ const getNotifications = async (force = false) => {
 }
 
 const Topbar = () => {
-    const { logout, user } = useAuth()
+    const { user } = useAuth()
     const navigate = useNavigate()
 
     const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -117,11 +117,6 @@ const Topbar = () => {
         window.addEventListener("scroll", onScroll, { passive: true })
         return () => window.removeEventListener("scroll", onScroll)
     }, [])
-
-    const handleLogout = async () => {
-        await logout()
-        navigate("/login")
-    }
 
     const unreadCount = notifications.filter((n) => !n.isRead).length
 
@@ -338,12 +333,6 @@ const Topbar = () => {
                                     Manage your SK Account
                                 </a>
 
-                                <button
-                                    onClick={handleLogout}
-                                    className="rounded-lg bg-red-600 p-2 text-sm transition hover:bg-red-700"
-                                >
-                                    Logout
-                                </button>
                             </div>
                         </div>
                     )}

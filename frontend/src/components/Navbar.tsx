@@ -54,11 +54,6 @@ const Navbar = () => {
         };
     }, []);
 
-    const handleLogout = async () => {
-        await logout();
-        navigate("/login");
-    };
-
     const getInitials = (username?: string) => {
         if (!username) return "?";
 
@@ -97,12 +92,6 @@ const Navbar = () => {
                                 Joined: {new Date(user.createdAt).toLocaleDateString()}
                             </p>
 
-                            <button
-                                onClick={handleLogout}
-                                className="mt-4 w-full bg-red-600 hover:bg-red-700 transition p-2 rounded"
-                            >
-                                Logout
-                            </button>
                         </div>
                     )}
                 </div>

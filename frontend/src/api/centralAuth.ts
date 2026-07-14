@@ -17,10 +17,17 @@ export const requestCentralAppToken = async () => {
     return result.data.token;
 };
 
-export const logoutFromCentral = async () => {
-    await fetch(`${centralApiUrl}/auth/global-logout`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-    }).catch(() => undefined);
+export const getCentralSessionState = async (): Promise<boolean | null> => {
+    try {
+        const response = await fetch(`${centralApiUrl}/auth/me`, {
+            credentials: "include",
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+        });
+        if (!response.ok) return null;
+        const result = await response.json() as { data?: { authenticated?: boolean } };
+        return result.data?.authenticated === true;
+    } catch {
+        return null;
+    }
 };
