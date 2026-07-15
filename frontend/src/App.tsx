@@ -1,5 +1,6 @@
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Routes, Route, Navigate } from "react-router-dom"
+import { BadgeCheck } from "lucide-react"
 
 import Home from "@/pages/Home"
 import Upload from "@/pages/Upload"
@@ -31,9 +32,39 @@ function CentralLoginRedirect() {
   if (isAuthenticated) return <Navigate to="/home" replace />
   return <div className="min-h-screen grid place-items-center bg-[#050816] text-white font-semibold">Connecting to SK Central...</div>
 }
+function DeveloperCredit() {
+  const [open, setOpen] = useState(false)
+  const creditRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (open && !creditRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener("pointerdown", closeOutside)
+    return () => document.removeEventListener("pointerdown", closeOutside)
+  }, [open])
+
+  return (
+    <div ref={creditRef} className="group fixed bottom-24 right-4 z-[100] flex items-center">
+      <a
+        href="https://www.linkedin.com/in/samaksh-rastogi-9638b9254/"
+        target="_blank"
+        rel="noreferrer"
+        className={`${open ? "flex" : "hidden group-hover:flex group-focus-within:flex"} items-center whitespace-nowrap rounded-l-2xl bg-white px-4 py-3 text-sm font-bold text-slate-950 shadow-xl`}
+      >
+        Developed by <span className="ml-1 text-emerald-600 underline decoration-2 underline-offset-4">Samaksh Rastogi</span>
+      </a>
+      <button type="button" onClick={() => setOpen((current) => !current)} className={`${open ? "rounded-r-2xl" : "rounded-2xl group-hover:rounded-l-none group-focus-within:rounded-l-none"} grid h-12 w-12 place-items-center bg-white text-cyan-600 shadow-xl`} aria-label={open ? "Hide developer credit" : "Show developer credit"} aria-expanded={open}>
+        <BadgeCheck className="h-5 w-5" aria-hidden />
+      </button>
+    </div>
+  )
+}
+
 function App() {
   return (
-    <Routes>
+    <>
+      <Routes>
 
       <Route path="/" element={<Navigate to="/login" replace />} />
 
@@ -108,7 +139,9 @@ function App() {
 
       <Route path="*" element={<Navigate to="/login" replace />} />
 
-    </Routes>
+      </Routes>
+      <DeveloperCredit />
+    </>
   )
 }
 
