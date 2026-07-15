@@ -66,7 +66,22 @@ const requireSuperAdmin = async (req: AuthRequest, res: any, next: any) => {
     }
 }
 
-router.get("/metrics", authenticate, requirePlatformAdmin, async (_req: AuthRequest, res) => {
+const hasCentralServiceToken = (req: any) => {
+    const configured = process.env.SK_CENTRAL_SERVICE_TOKEN?.trim()
+    return Boolean(configured && req.header("x-sk-central-token")?.trim() === configured)
+}
+
+const authenticateAnalytics = (req: any, res: any, next: any) => {
+    if (hasCentralServiceToken(req)) return next()
+    return authenticate(req, res, next)
+}
+
+const authorizeAnalytics = (req: AuthRequest, res: any, next: any) => {
+    if (hasCentralServiceToken(req)) return next()
+    return requirePlatformAdmin(req, res, next)
+}
+
+router.get("/metrics", authenticateAnalytics, authorizeAnalytics, async (_req: AuthRequest, res) => {
     try {
         const req = _req
         const now = new Date()
