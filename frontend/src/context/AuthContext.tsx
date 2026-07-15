@@ -7,7 +7,7 @@ import {
 } from "react"
 import { api, clearStoredAuth, setAuthToken } from "@/api/axios"
 import { API_URL } from "@/config/env"
-import { getCentralSessionState, redirectToCentralLogin, requestCentralAppToken } from "@/api/centralAuth"
+import { getCentralProfile, getCentralSessionState, redirectToCentralLogin, requestCentralAppToken } from "@/api/centralAuth"
 
 interface User {
     id: string
@@ -20,6 +20,12 @@ interface User {
     platformAdmin?: boolean
 }
 
+const mergeCentralProfile = (user: User) => {
+    const centralProfile = getCentralProfile()
+    return centralProfile
+        ? { ...user, name: centralProfile.name || user.name, avatarUrl: centralProfile.avatarUrl || user.avatarUrl }
+        : user
+}
 interface AuthContextType {
     token: string | null
     user: User | null
@@ -82,6 +88,9 @@ export const AuthProvider = ({
 
     useEffect(() => {
         if (getStoredToken()) {
+            void requestCentralAppToken()
+                .then(() => setUser((current) => current ? mergeCentralProfile(current) : current))
+                .catch(() => undefined)
             setIsLoading(false)
             return
         }
@@ -94,12 +103,12 @@ export const AuthProvider = ({
                 const data = response.data.data
                 if (cancelled) return
                 localStorage.setItem("token", data.token)
-                localStorage.setItem("user", JSON.stringify(data.user))
+                localStorage.setItem("user", JSON.stringify(mergeCentralProfile(data.user)))
                 localStorage.setItem("loginId", data.loginId)
                 localStorage.setItem("sessionStart", String(Date.now()))
                 setAuthToken(data.token)
                 setToken(data.token)
-                setUser(data.user)
+                setUser(mergeCentralProfile(data.user))
                 setLoginId(data.loginId)
             } catch {
                 // Protected routes send unauthenticated users to the Central login handoff.
@@ -183,12 +192,12 @@ export const AuthProvider = ({
                         const data = response.data.data
                         if (cancelled) return
                         localStorage.setItem("token", data.token)
-                        localStorage.setItem("user", JSON.stringify(data.user))
+                        localStorage.setItem("user", JSON.stringify(mergeCentralProfile(data.user)))
                         localStorage.setItem("loginId", data.loginId)
                         localStorage.setItem("sessionStart", String(Date.now()))
                         setAuthToken(data.token)
                         setToken(data.token)
-                        setUser(data.user)
+                        setUser(mergeCentralProfile(data.user))
                         setLoginId(data.loginId)
                     } catch {
                         // The login route performs the Central handoff when no Central session exists.
