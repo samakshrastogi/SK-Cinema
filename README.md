@@ -687,3 +687,25 @@ flowchart TD
     WATCH --> NOTIF["Notification Failures Are Non-Blocking"]
     WATCH --> MEDIA["Media Processing Issues Need Worker Checks"]
 ```
+
+## SK ecosystem overview
+
+| Area | Details |
+| --- | --- |
+| Purpose | Secure video upload, processing, streaming, organization, and audience engagement. |
+| Primary users | Viewers, creators, organization teams, and platform administrators. |
+| Central integration | SK Auth login, global logout, central profile/avatar, and protected product analytics. |
+| Admin signals | Active users, logins, watch time, completion, reactions, organizations, and invite conversion. |
+
+## SK Central handoff
+
+```mermaid
+flowchart LR
+  User --> Central[SK Central / SK Auth]
+  Central -->|short-lived app token| MediaFlow[SK MediaFlow]
+  MediaFlow -->|validate token| CentralAPI[Central API]
+  MediaFlow --> Video[Upload, process, and stream]
+  Metrics[Aggregate media operations] -->|service token| CentralAnalytics[SK Central analytics]
+```
+
+The MediaFlow backend must use the same `SK_CENTRAL_SERVICE_TOKEN` value configured as `SK_QUIZ_SERVICE_TOKEN` in SK Central.
