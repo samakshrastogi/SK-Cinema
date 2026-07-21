@@ -36,6 +36,9 @@ interface AuthContextType {
     updateUser: (user: User) => void
     isAuthenticated: boolean
     isLoading: boolean
+    centralLoginRequired: boolean
+    connectionError: string | null
+    retryCentralConnection: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -84,6 +87,9 @@ export const AuthProvider = ({
     const [user, setUser] = useState<User | null>(getStoredUser())
     const [loginId, setLoginId] = useState<string | null>(() => getStoredLoginId())
     const [isLoading, setIsLoading] = useState(!getStoredToken())
+    const [centralLoginRequired, setCentralLoginRequired] = useState(false)
+    const [connectionError, setConnectionError] = useState<string | null>(null)
+    const [connectionAttempt, setConnectionAttempt] = useState(0)
 
 
     useEffect(() => {
@@ -97,9 +103,33 @@ export const AuthProvider = ({
 
         let cancelled = false
         const connectCentral = async () => {
+            setIsLoading(true)
+            setCentralLoginRequired(false)
+            setConnectionError(null)
+            let centralToken: string
             try {
-                const centralToken = await requestCentralAppToken()
-                const response = await api.post("/auth/central", { token: centralToken })
+                centralToken = await requestCentralAppToken()
+            } catch (error) {
+                if (cancelled) return
+                const status = (error as { status?: number })?.status
+                setCentralLoginRequired(status === 401 || status === 403)
+                if (status !== 401 && status !== 403) setConnectionError(error instanceof Error ? error.message : "Unable to reach SK Central")
+                setIsLoading(false)
+                return
+            }
+
+            try {
+                let response
+                for (let attempt = 0; attempt < 3; attempt += 1) {
+                    try {
+                        response = await api.post("/auth/central", { token: centralToken }, { timeout: 30_000 })
+                        break
+                    } catch (error) {
+                        if (attempt === 2) throw error
+                        await new Promise((resolve) => window.setTimeout(resolve, 750 * (attempt + 1)))
+                    }
+                }
+                if (!response) throw new Error("MediaFlow did not complete the SK Central exchange")
                 const data = response.data.data
                 if (cancelled) return
                 localStorage.setItem("token", data.token)
@@ -110,15 +140,15 @@ export const AuthProvider = ({
                 setToken(data.token)
                 setUser(mergeCentralProfile(data.user))
                 setLoginId(data.loginId)
-            } catch {
-                // Protected routes send unauthenticated users to the Central login handoff.
+            } catch (error) {
+                if (!cancelled) setConnectionError((error as { response?: { data?: { message?: string } } })?.response?.data?.message || (error instanceof Error ? error.message : "MediaFlow could not complete sign-in"))
             } finally {
                 if (!cancelled) setIsLoading(false)
             }
         }
         void connectCentral()
         return () => { cancelled = true }
-    }, [])
+    }, [connectionAttempt])
 
     useEffect(() => {
         setAuthToken(token)
@@ -186,8 +216,20 @@ export const AuthProvider = ({
                     setToken(null)
                     setUser(null)
                     setLoginId(null)
+                    let centralToken: string
                     try {
-                        const centralToken = await requestCentralAppToken()
+                        centralToken = await requestCentralAppToken()
+                    } catch (error) {
+                        if (cancelled) return
+                        const status = (error as { status?: number })?.status
+                        setCentralLoginRequired(status === 401 || status === 403)
+                        if (status !== 401 && status !== 403) {
+                            setConnectionError(error instanceof Error ? error.message : "Unable to reach SK Central")
+                        }
+                        return
+                    }
+
+                    try {
                         const response = await api.post("/auth/central", { token: centralToken })
                         const data = response.data.data
                         if (cancelled) return
@@ -199,8 +241,13 @@ export const AuthProvider = ({
                         setToken(data.token)
                         setUser(mergeCentralProfile(data.user))
                         setLoginId(data.loginId)
-                    } catch {
-                        // The login route performs the Central handoff when no Central session exists.
+                    } catch (error) {
+                        if (!cancelled) {
+                            setConnectionError(
+                                (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+                                || (error instanceof Error ? error.message : "MediaFlow could not complete sign-in")
+                            )
+                        }
                     }
                 }
             }
@@ -376,6 +423,9 @@ export const AuthProvider = ({
         updateUser,
         isAuthenticated: !!token,
         isLoading,
+        centralLoginRequired,
+        connectionError,
+        retryCentralConnection: () => setConnectionAttempt((attempt) => attempt + 1),
     }
 
     return (

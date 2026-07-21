@@ -23,13 +23,14 @@ import { redirectToCentralLogin } from "@/api/centralAuth"
 
 
 function CentralLoginRedirect() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, centralLoginRequired, connectionError, retryCentralConnection } = useAuth()
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) redirectToCentralLogin()
-  }, [isAuthenticated, isLoading])
+    if (!isLoading && !isAuthenticated && centralLoginRequired) redirectToCentralLogin()
+  }, [centralLoginRequired, isAuthenticated, isLoading])
 
   if (isAuthenticated) return <Navigate to="/home" replace />
+  if (connectionError && !isLoading) return <div className="min-h-screen grid place-items-center bg-[#050816] p-6 text-white"><div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 text-center"><h1 className="text-xl font-bold">MediaFlow sign-in needs another try</h1><p className="mt-2 text-sm text-slate-300">{connectionError}</p><button type="button" onClick={retryCentralConnection} className="mt-5 rounded-xl bg-cyan-500 px-5 py-2.5 font-bold text-slate-950">Retry connection</button></div></div>
   return <div className="min-h-screen grid place-items-center bg-[#050816] text-white font-semibold">Connecting to SK Central...</div>
 }
 function DeveloperCredit() {

@@ -36,23 +36,26 @@ const verifyCentralToken = async (token: string): Promise<CentralPayload | null>
         }
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    try {
-        const response = await fetch(`${CENTRAL_API_URL}/auth/validate`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({ token }),
-            signal: controller.signal,
-        });
-        if (!response.ok) return null;
-        const result = await response.json() as { data?: { valid?: boolean; payload?: unknown } };
-        return result.data?.valid && isValidPayload(result.data.payload) ? result.data.payload : null;
-    } catch {
-        return null;
-    } finally {
-        clearTimeout(timeout);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        try {
+            const response = await fetch(`${CENTRAL_API_URL}/auth/validate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({ token }),
+                signal: controller.signal,
+            });
+            if (!response.ok) return null;
+            const result = await response.json() as { data?: { valid?: boolean; payload?: unknown } };
+            return result.data?.valid && isValidPayload(result.data.payload) ? result.data.payload : null;
+        } catch {
+            if (attempt === 1) return null;
+        } finally {
+            clearTimeout(timeout);
+        }
     }
+    return null;
 };
 
 export const centralLogin = async (req: Request, res: Response) => {
