@@ -399,6 +399,7 @@ const Auth = () => {
 
                     {/* Header */}
                     <div className="mb-6 text-center sm:mb-8">
+                        <img src="/images/logo.png" alt="" className="mx-auto mb-3 h-14 w-14 rounded-full object-cover shadow-lg shadow-cyan-500/20" />
                         <h1 className="text-4xl font-extrabold leading-tight bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent sm:text-5xl lg:text-4xl">
                             SK-MediaFlow
                         </h1>
