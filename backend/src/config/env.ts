@@ -3,33 +3,31 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const placeholder = /^(PASTE_|CHANGE_ME|YOUR_)/i;
-const databaseName = (process.env.DATABASE_NAME || "sk_mediaflow").trim();
+const configuredUrl = process.env.DATABASE_URL?.trim();
+const databaseName = process.env.DATABASE_NAME?.trim();
 
-const buildDatabaseUrl = () => {
-    const host = process.env.MONGODB_HOST?.trim();
-    const username = process.env.MONGODB_USERNAME?.trim();
-    const password = process.env.MONGODB_PASSWORD;
-    const authSource = (process.env.MONGODB_AUTH_SOURCE || "admin").trim();
+if (!configuredUrl || placeholder.test(configuredUrl)) {
+    throw new Error("MongoDB is not configured. Set DATABASE_URL to the complete MongoDB connection string.");
+}
+if (!databaseName || placeholder.test(databaseName)) {
+    throw new Error("MongoDB database name is not configured. Set DATABASE_NAME.");
+}
+if (!/^mongodb(?:\+srv)?:\/\//i.test(configuredUrl)) {
+    throw new Error("DATABASE_URL must use the mongodb:// or mongodb+srv:// protocol.");
+}
 
-    if (host && username && password) {
-        return `mongodb+srv://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host.replace(/^mongodb(?:\+srv)?:\/\//, "").replace(/\/$/, "")}/${encodeURIComponent(databaseName)}?retryWrites=true&w=majority&authSource=${encodeURIComponent(authSource)}`;
-    }
+const queryIndex = configuredUrl.indexOf("?");
+const connectionPart = queryIndex === -1 ? configuredUrl : configuredUrl.slice(0, queryIndex);
+const queryPart = queryIndex === -1 ? "" : configuredUrl.slice(queryIndex);
+const authorityStart = configuredUrl.indexOf("://") + 3;
+const pathIndex = connectionPart.indexOf("/", authorityStart);
+const authority = pathIndex === -1 ? connectionPart : connectionPart.slice(0, pathIndex);
 
-    const configuredUrl = process.env.DATABASE_URL?.trim();
-    if (!configuredUrl || placeholder.test(configuredUrl)) {
-        throw new Error("MongoDB is not configured. Set MONGODB_HOST, MONGODB_USERNAME, MONGODB_PASSWORD and DATABASE_NAME, or provide DATABASE_URL.");
-    }
+if (!authority.slice(authorityStart).includes("@")) {
+    throw new Error("DATABASE_URL must include MongoDB credentials.");
+}
 
-    try {
-        const url = new URL(configuredUrl);
-        url.pathname = `/${encodeURIComponent(databaseName)}`;
-        return url.toString();
-    } catch {
-        throw new Error("DATABASE_URL is not a valid MongoDB connection string.");
-    }
-};
-
-process.env.DATABASE_URL = buildDatabaseUrl();
+process.env.DATABASE_URL = `${authority}/${encodeURIComponent(databaseName)}${queryPart}`;
 
 export const PORT = process.env.PORT;
 export const DATABASE_NAME = databaseName;
