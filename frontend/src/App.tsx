@@ -30,7 +30,7 @@ function CentralLoginRedirect() {
   }, [centralLoginRequired, isAuthenticated, isLoading])
 
   if (isAuthenticated) return <Navigate to="/home" replace />
-  if (connectionError && !isLoading) return <div className="min-h-screen grid place-items-center bg-[#050816] p-6 text-white"><div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 text-center"><h1 className="text-xl font-bold">MediaFlow sign-in needs another try</h1><p className="mt-2 text-sm text-slate-300">{connectionError}</p><button type="button" onClick={retryCentralConnection} className="mt-5 rounded-xl bg-cyan-500 px-5 py-2.5 font-bold text-slate-950">Retry connection</button></div></div>
+  if (connectionError && !isLoading) return <div className="min-h-screen grid place-items-center bg-[#050816] p-6 text-white"><div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 text-center"><h1 className="text-xl font-bold">MediaFlow sign-in needs another try</h1><p className="mt-2 text-sm leading-6 text-slate-300">MediaFlow could not connect to its database. Please retry in a moment. If this continues, the service administrator must verify the MongoDB credentials.</p><button type="button" onClick={retryCentralConnection} className="mt-5 rounded-xl bg-cyan-500 px-5 py-2.5 font-bold text-slate-950">Retry connection</button></div></div>
   return <div className="min-h-screen grid place-items-center bg-[#050816] text-white font-semibold">Connecting to SK Central...</div>
 }
 function DeveloperCredit() {

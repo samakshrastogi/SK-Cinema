@@ -122,6 +122,14 @@ export const centralLogin = async (req: Request, res: Response) => {
             },
         });
     } catch (error: any) {
-        return res.status(500).json({ success: false, message: error.message || "Central login failed" });
+        const detail = String(error?.message || "");
+        const databaseUnavailable = /AuthenticationFailed|SCRAM|ConnectorError|query execution|database/i.test(detail);
+        console.error("Central login failed", databaseUnavailable ? { category: "database_unavailable" } : error);
+        return res.status(databaseUnavailable ? 503 : 500).json({
+            success: false,
+            message: databaseUnavailable
+                ? "MediaFlow database connection is unavailable. Verify the MongoDB credentials and try again."
+                : "MediaFlow sign-in could not be completed. Please try again.",
+        });
     }
 };
