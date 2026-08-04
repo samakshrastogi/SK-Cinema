@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { Response } from "express"
+import { logger } from "../../utils/logger"
 import {
     generatePresignedUrl,
     generateThumbnailPresignedUrl,
@@ -235,7 +236,7 @@ export const importSelectedVideos = async (
             if (!exists) {
                 const video = await prisma.video.create({
                     data: {
-                        publicId: nanoid(10), // ✅ ADD THIS LINE
+                        publicId: nanoid(10),
 
                         title: key.split("/").pop() || "Untitled",
                         s3Key: key,
@@ -300,10 +301,11 @@ export const handleGetVideos = async (
                 size: video.size.toString()
             }))
         })
-    } catch {
-        return res.status(500).json({
+    } catch (error) {
+        logger.error("VIDEO_LIBRARY", "Failed to fetch homepage videos", { error })
+        return res.status(503).json({
             success: false,
-            message: "Failed to fetch videos"
+            message: "Video library is temporarily unavailable"
         })
     }
 }
@@ -431,7 +433,7 @@ export const handleGetChannelPublicVideos = async (req, res) => {
             }
         })
 
-        // ✅ FIX HERE
+        // Normalize the public video response
         const formatted = videos.map(v => ({
             id: v.id,
             publicId: v.publicId,
@@ -445,7 +447,7 @@ export const handleGetChannelPublicVideos = async (req, res) => {
                 ? signCloudFrontUrl(v.channel.user.avatarKey)
                 : null,
             uploaderName: v.channel?.user?.name ?? null,
-            size: v.size.toString(), // 🔥 IMPORTANT
+            size: v.size.toString(),
             createdAt: v.createdAt
         }))
 
@@ -469,7 +471,7 @@ export const handleGetChannelPrivateVideos = async (req: AuthRequest, res: Respo
 
         const { channelId } = req.params
 
-        // ✅ ensure user owns this channel
+        // Ensure the user owns this channel
         const channel = await prisma.channel.findUnique({
             where: { id: normalizeId(channelId) }
         })
@@ -519,7 +521,7 @@ export const handleGetChannelPrivateVideos = async (req: AuthRequest, res: Respo
                 ? signCloudFrontUrl(v.channel.user.avatarKey)
                 : null,
             uploaderName: v.channel?.user?.name ?? null,
-            size: v.size.toString(), // ✅ fix
+            size: v.size.toString(),
             createdAt: v.createdAt
         }))
 
@@ -620,10 +622,11 @@ export const handleGetPortraitVideos = async (
                 size: video.size.toString()
             }))
         })
-    } catch {
-        return res.status(500).json({
+    } catch (error) {
+        logger.error("VIDEO_LIBRARY", "Failed to fetch portrait videos", { error })
+        return res.status(503).json({
             success: false,
-            message: "Failed to fetch portrait videos"
+            message: "Portrait video library is temporarily unavailable"
         })
     }
 }

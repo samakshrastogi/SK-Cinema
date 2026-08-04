@@ -229,6 +229,16 @@ app.use("/api/admin", adminRoutes)
 
 /* ---------------- HEALTH CHECK ---------------- */
 
+app.get("/health", async (_req, res) => {
+    try {
+        await prisma.$runCommandRaw({ ping: 1 })
+        return res.json({ status: "healthy", database: "connected" })
+    } catch (error) {
+        logger.error("HEALTH", "MongoDB health check failed", { error })
+        return res.status(503).json({ status: "unhealthy", database: "unavailable" })
+    }
+})
+
 app.get("/", (_req, res) => {
     res.send("API is running...")
 })

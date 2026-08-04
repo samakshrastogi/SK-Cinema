@@ -7,6 +7,7 @@ import app from "./app";
 import { setSocketServer } from "./services/realtime.service";
 import { logger } from "./utils/logger";
 import { corsOrigin } from "./config/cors";
+import { prisma } from "./config/prisma";
 
 const PORT = process.env.PORT;
 
@@ -77,6 +78,18 @@ if (process.env.ENABLE_REDIS_QUEUE_EVENTS === "true") {
 
 /* ---------------- START SERVER ---------------- */
 
-server.listen(PORT, () => {
-  console.log(`[${new Date().toISOString()}] Backend server is ready`);
-});
+const startServer = async () => {
+  try {
+    await prisma.$runCommandRaw({ ping: 1 });
+    logger.info("DATABASE", "MongoDB connectivity verified");
+
+    server.listen(PORT, () => {
+      logger.info("SERVER", "Backend server is ready", { port: PORT });
+    });
+  } catch (error) {
+    logger.error("DATABASE", "Backend startup stopped because MongoDB is unavailable", { error });
+    process.exit(1);
+  }
+};
+
+void startServer();

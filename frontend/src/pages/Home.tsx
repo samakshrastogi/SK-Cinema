@@ -196,6 +196,7 @@ const Home = () => {
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(cached?.selectedOrgId || null)
   const [selectedOrgName, setSelectedOrgName] = useState<string>(cached?.selectedOrgName || "")
   const [loading, setLoading] = useState(!cached)
+  const [loadError, setLoadError] = useState("")
   const [orgRowLoading, setOrgRowLoading] = useState(false)
 
   /* ---------------- HELPERS ---------------- */
@@ -204,7 +205,7 @@ const Home = () => {
     if (!Array.isArray(videos)) return []
 
     return videos.map(v => ({
-      publicId: v.publicId,   // ✅ FIX
+      publicId: v.publicId,
       title: v.title || v.aiTitle || "Untitled",
       aiTitle: v.aiTitle ?? undefined,
       aiDescription: v.aiDescription ?? undefined,
@@ -245,10 +246,11 @@ const Home = () => {
 
   const fetchHomeData = useCallback(async () => {
     try {
-      const [res, orgRes] = await Promise.all([
-        api.get("/video"),
-        api.get("/organization/my")
-      ])
+      setLoadError("")
+      const res = await api.get("/video")
+      const orgRes = await api.get("/organization/my").catch(() => ({
+        data: { data: { memberships: [], access: {} } }
+      }))
       const raw: RawVideo[] = res.data?.data || []
 
       const allVideos = normalize(raw)
@@ -282,7 +284,8 @@ const Home = () => {
         localStorage.removeItem(savedOrgStorageKey)
       }
 
-    } catch (error) {
+    } catch {
+      setLoadError("The video library could not be refreshed. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -307,7 +310,7 @@ const Home = () => {
       const res = await api.get(`/video/organization/${organizationId}`)
       const raw: RawVideo[] = res.data?.data || []
       setOrgVideos(normalize(raw))
-    } catch (err) {
+    } catch {
       setOrgVideos([])
     } finally {
       setOrgRowLoading(false)
@@ -547,6 +550,15 @@ const Home = () => {
           <SkeletonLoader />
         ) : (
           <div className="space-y-9 pb-10">
+            {loadError && (
+              <div role="alert" className="mx-4 flex flex-col gap-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100 sm:mx-6 sm:flex-row sm:items-center sm:justify-between">
+                <span>{loadError}</span>
+                <button type="button" onClick={() => void fetchHomeData()} className="w-fit rounded-xl bg-white px-4 py-2 font-semibold text-slate-950 transition hover:bg-amber-50">
+                  Try again
+                </button>
+              </div>
+            )}
+
             {selectedOrgId && (
               <VideoRow
                 title={selectedOrgName ? `${selectedOrgName} Videos` : "Organization Videos"}
