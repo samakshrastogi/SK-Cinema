@@ -18,6 +18,7 @@ import { prisma } from "../../config/prisma"
 import { s3 } from "../../config/s3"
 import { ffmpegCommand } from "../../config/ffmpeg"
 import { emitNewVideoUploaded } from "../../services/realtime.service"
+import { logger } from "../../utils/logger"
 import { getOrganizationAccessContext } from "../organization/organization.service"
 import {
     createNotification,
@@ -135,16 +136,32 @@ const formatDurationLabel = (durationSeconds?: number | null) => {
 }
 
 const signCloudFrontUrl = (key: string) => {
-    const encodedKey = encodeURI(key)
+    const domain = process.env.CLOUDFRONT_DOMAIN?.trim()
+    if (!key || !domain) {
+        logger.warn("VIDEO_DELIVERY", "CloudFront URL could not be built because its domain or object key is missing")
+        return ""
+    }
 
-    const url = `https://${process.env.CLOUDFRONT_DOMAIN}/${encodedKey}`
+    const url = `https://${domain}/${encodeURI(key)}`
+    const keyPairId = process.env.CLOUDFRONT_KEY_PAIR_ID?.trim()
+    const privateKey = process.env.CLOUDFRONT_PRIVATE_KEY?.replace(/\\n/g, "\n").trim()
 
-    return getCFSignedUrl({
-        url,
-        keyPairId: process.env.CLOUDFRONT_KEY_PAIR_ID!,
-        privateKey: process.env.CLOUDFRONT_PRIVATE_KEY!.replace(/\\n/g, "\n"),
-        dateLessThan: new Date(Date.now() + 60 * 60 * 1000).toISOString()
-    })
+    if (!keyPairId || !privateKey) {
+        logger.warn("VIDEO_DELIVERY", "CloudFront signing is not configured; returning the distribution URL")
+        return url
+    }
+
+    try {
+        return getCFSignedUrl({
+            url,
+            keyPairId,
+            privateKey,
+            dateLessThan: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+        })
+    } catch (error) {
+        logger.error("VIDEO_DELIVERY", "CloudFront URL signing failed; returning the distribution URL", { error })
+        return url
+    }
 }
 
 export const generatePresignedUrl = async (
@@ -350,7 +367,7 @@ export const completeUpload = async (
 
     const video = await prisma.video.create({
         data: {
-            publicId: nanoid(10), // ✅ ADD THIS
+            publicId: nanoid(10), // âœ… ADD THIS
 
             title: submittedTitle || fallbackTitle,
             s3Key: key,
@@ -1019,7 +1036,7 @@ export const getVideoById = async (publicId: string, userId?: string) => {
 
     const video = await prisma.video.findFirst({
         where: {
-            publicId, // ✅ CHANGED
+            publicId, // âœ… CHANGED
             status: ACTIVE_VIDEO_STATUS
         },
         include: {
@@ -1089,7 +1106,7 @@ export const getVideoById = async (publicId: string, userId?: string) => {
 
     return {
         id: video.id, // keep internal id if needed
-        publicId: video.publicId, // ✅ ADD THIS
+        publicId: video.publicId, // âœ… ADD THIS
         title: video.title,
         aiTitle: video.aiData?.aiTitle ?? null,
         aiDescription: video.aiData?.aiDescription ?? null,
