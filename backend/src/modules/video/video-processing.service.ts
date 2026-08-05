@@ -8,7 +8,7 @@ import { prisma } from "../../config/prisma"
 import { s3 } from "../../config/s3"
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { videoAIQueue } from "../../queues/video-ai.queue"
-import { thumbnailQueue, videoMetadataQueue } from "../../services/video-processing.service"
+import { hlsProcessingQueue, thumbnailQueue, videoMetadataQueue } from "../../services/video-processing.service"
 import { pipeline } from "stream/promises"
 import { logger } from "../../utils/logger"
 import { formatDurationMs } from "../../utils/time"
@@ -210,6 +210,21 @@ export const startVideoPostUploadPipeline = async (
     )
     if (metadataJob.id) {
         logger.info("VIDEO_PROCESSING", "Metadata worker was queued")
+    }
+
+    if (process.env.HLS_PROCESSING_ENABLED !== "false") {
+        await hlsProcessingQueue.add(
+            "generateAdaptiveHls",
+            { videoId, s3Key, channelUsername },
+            {
+                jobId: `video-hls-${videoId}`,
+                attempts: 2,
+                backoff: { type: "exponential", delay: 15000 },
+                removeOnComplete: RETAIN_COMPLETED_JOBS,
+                removeOnFail: RETAIN_FAILED_JOBS
+            }
+        )
+        logger.info("VIDEO_PROCESSING", "Adaptive HLS worker was queued")
     }
 
     logger.info("VIDEO_PROCESSING", "AI and spritesheet generation will wait for user request", {

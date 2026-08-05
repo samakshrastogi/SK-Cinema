@@ -101,6 +101,9 @@ model Video {
   publicId String @unique @db.String
   title String
   s3Key String @unique
+  hlsMasterKey String?
+  hlsStatus String? @default("pending")
+  hlsError String?
   size String
   thumbnailKey String?
   aiThumbnailStatus String @default("idle")

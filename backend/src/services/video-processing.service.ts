@@ -30,6 +30,19 @@ export const videoMetadataQueue = new Queue(
     }
 )
 
+export const hlsProcessingQueue = new Queue(
+    "hlsProcessingQueue",
+    {
+        connection: redisConnection as any,
+        skipVersionCheck: true,
+        defaultJobOptions: {
+            ...defaultJobOptions,
+            attempts: 2,
+            backoff: { type: "exponential", delay: 15000 }
+        }
+    }
+)
+
 /* ---------------- START PROCESSING ---------------- */
 
 export const startVideoProcessing = async (videoId: string) => {

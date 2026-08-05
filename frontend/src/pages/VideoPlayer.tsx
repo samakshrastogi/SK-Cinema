@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import Hls from "hls.js"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { api } from "@/api/axios"
 import AppLayout from "@/layouts/AppLayout"
@@ -16,6 +17,7 @@ interface VideoDetail {
     aiTitle?: string
     aiDescription?: string
     signedUrl: string
+    hlsUrl?: string | null
     thumbnailKey?: string
     channel: {
         name: string
@@ -70,6 +72,7 @@ const toVideoDetail = (video?: VideoCardVideo | null): VideoDetail | null => {
         aiTitle: video.aiTitle ?? undefined,
         aiDescription: video.aiDescription ?? undefined,
         signedUrl: video.signedUrl,
+        hlsUrl: (video as VideoCardVideo & { hlsUrl?: string | null }).hlsUrl,
         thumbnailKey: video.thumbnailKey,
         channel: {
             name: video.channel?.name || "Unknown channel",
@@ -128,6 +131,7 @@ const VideoPlayer = () => {
     const watchIntervalRef = useRef<number | null>(null)
     const lastSavedPositionRef = useRef(0)
     const descriptionRef = useRef<HTMLParagraphElement | null>(null)
+    const [usingAdaptiveStream, setUsingAdaptiveStream] = useState(false)
 
     useEffect(() => {
         if (!publicId || navigationVideo?.publicId !== publicId) return
@@ -173,6 +177,54 @@ const VideoPlayer = () => {
             // Keep the current cached UI when an optional browser or network action fails.
         }
     }
+
+    useEffect(() => {
+        const media = videoRef.current
+        if (!media || !video?.signedUrl) return
+        let hls: Hls | null = null
+        let fellBack = false
+        const useMp4Fallback = () => {
+            if (fellBack) return
+            fellBack = true
+            setUsingAdaptiveStream(false)
+            const position = Number.isFinite(media.currentTime) ? media.currentTime : 0
+            media.src = video.signedUrl
+            media.load()
+            if (position > 0) media.addEventListener("loadedmetadata", () => {
+                media.currentTime = Math.min(position, media.duration || position)
+                void media.play().catch(() => undefined)
+            }, { once: true })
+        }
+
+        if (video.hlsUrl && media.canPlayType("application/vnd.apple.mpegurl")) {
+            media.src = video.hlsUrl
+            setUsingAdaptiveStream(true)
+            media.load()
+        } else if (video.hlsUrl && Hls.isSupported()) {
+            hls = new Hls({
+                enableWorker: true,
+                startLevel: -1,
+                capLevelToPlayerSize: true,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 60,
+                backBufferLength: 30,
+                fragLoadingMaxRetry: 4,
+                manifestLoadingMaxRetry: 3,
+                levelLoadingMaxRetry: 3
+            })
+            hls.loadSource(video.hlsUrl)
+            hls.attachMedia(media)
+            setUsingAdaptiveStream(true)
+            hls.on(Hls.Events.ERROR, (_event, data) => {
+                if (!data.fatal || !hls) return
+                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad()
+                else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError()
+                else useMp4Fallback()
+            })
+        } else useMp4Fallback()
+
+        return () => hls?.destroy()
+    }, [video?.publicId, video?.hlsUrl, video?.signedUrl])
 
     const loadActions = async () => {
         const res = await api.get(`/video-actions/video/${publicId}`)
@@ -530,11 +582,10 @@ const VideoPlayer = () => {
             <div className="grid min-w-0 w-full items-start gap-4 sm:gap-6 xl:gap-8 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
                 <div className="min-w-0 space-y-4 sm:space-y-5">
                     <div
-                        className={`${contentWidthClass} overflow-hidden rounded-[1.25rem] border border-white/10 bg-black shadow-xl sm:rounded-2xl`}
+                        className={`${contentWidthClass} relative overflow-hidden rounded-[1.25rem] border border-white/10 bg-black shadow-xl sm:rounded-2xl`}
                     >
                         <video
                             ref={videoRef}
-                            src={video.signedUrl}
                             poster={posterUrl}
                             controls
                             playsInline
@@ -545,6 +596,11 @@ const VideoPlayer = () => {
                             onEnded={handleEnded}
                             className="block aspect-video max-h-[78vh] w-full bg-black object-contain"
                         />
+                        {usingAdaptiveStream && (
+                            <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur">
+                                Auto quality
+                            </span>
+                        )}
                     </div>
 
                     <div className={`${contentWidthClass} min-w-0 rounded-[1.25rem] border border-white/10 bg-white/5 p-4 space-y-4 sm:rounded-2xl sm:p-5`}>

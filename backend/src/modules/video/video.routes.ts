@@ -21,7 +21,8 @@ import {
     handleSaveThumbnailFromSpritesheet,
     handleUpdateOwnedVideo,
     handleDeleteOwnedVideo,
-    handleGenerateAIAssets
+    handleGenerateAIAssets,
+    handleGetHlsManifest
 } from "./video.controller"
 
 import {
@@ -67,6 +68,7 @@ router.get(
     authenticate,
     handleGetChannelOrganizationVideos
 )
+router.get("/:publicId/hls/:manifest", handleGetHlsManifest)
 router.patch("/:publicId", authenticate, handleUpdateOwnedVideo)
 router.post("/:publicId/generate-ai-assets", authenticate, handleGenerateAIAssets)
 router.delete("/:publicId", authenticate, handleDeleteOwnedVideo)

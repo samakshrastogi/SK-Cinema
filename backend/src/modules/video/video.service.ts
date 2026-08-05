@@ -19,6 +19,7 @@ import { s3 } from "../../config/s3"
 import { ffmpegCommand } from "../../config/ffmpeg"
 import { emitNewVideoUploaded } from "../../services/realtime.service"
 import { logger } from "../../utils/logger"
+import { hlsProcessingQueue } from "../../services/video-processing.service"
 import { getOrganizationAccessContext } from "../organization/organization.service"
 import {
     createNotification,
@@ -1128,6 +1129,20 @@ export const getVideoById = async (publicId: string, userId?: string) => {
         }
     }
 
+    if (
+        video.visibility === "PUBLIC" &&
+        !video.hlsMasterKey &&
+        video.hlsStatus !== "processing" &&
+        video.hlsStatus !== "failed" &&
+        process.env.HLS_PROCESSING_ENABLED !== "false"
+    ) {
+        void hlsProcessingQueue.add(
+            "generateAdaptiveHls",
+            { videoId: video.id, s3Key: video.s3Key, channelUsername: video.channel.username },
+            { jobId: `video-hls-${video.id}`, attempts: 2, backoff: { type: "exponential", delay: 15000 } }
+        ).catch((error) => logger.warn("VIDEO_DELIVERY", "Could not queue adaptive stream backfill", { error }))
+    }
+
     return {
         id: video.id, // keep internal id if needed
         publicId: video.publicId, // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ADD THIS
@@ -1144,6 +1159,8 @@ export const getVideoById = async (publicId: string, userId?: string) => {
         thumbnailKey: video.thumbnailKey,
         orientation: video.metadata?.orientation ?? null,
         signedUrl: await getObjectDeliveryUrl(video.s3Key),
+        hlsAvailable: video.visibility === "PUBLIC" && video.hlsStatus === "ready" && Boolean(video.hlsMasterKey),
+        hlsStatus: video.hlsStatus,
         size: video.size.toString(),
         visibility: video.visibility
     }
@@ -1164,6 +1181,47 @@ const streamToString = async (stream: any): Promise<string> => {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
     }
     return Buffer.concat(chunks).toString("utf-8")
+}
+
+export const getPublicHlsManifest = async (
+    publicId: string,
+    manifestName: string,
+    manifestBaseUrl: string
+) => {
+    const video = await prisma.video.findFirst({
+        where: { publicId, status: ACTIVE_VIDEO_STATUS, visibility: "PUBLIC" },
+        select: { hlsMasterKey: true, hlsStatus: true }
+    })
+    if (!video?.hlsMasterKey || video.hlsStatus !== "ready") {
+        throw new Error("Adaptive stream is not ready")
+    }
+
+    const masterDirectory = path.posix.dirname(video.hlsMasterKey)
+    const isMaster = manifestName === "master.m3u8"
+    if (!isMaster && !/^[a-zA-Z0-9_-]+\.m3u8$/.test(manifestName)) {
+        throw new Error("Invalid stream manifest")
+    }
+    const key = isMaster
+        ? video.hlsMasterKey
+        : `${masterDirectory}/${manifestName.replace(/\.m3u8$/, "")}/index.m3u8`
+    const object = await s3.send(new GetObjectCommand({ Bucket: AWS_BUCKET, Key: key }))
+    const source = await streamToString(object.Body)
+    const lines = source.split(/\r?\n/)
+    const rewritten = await Promise.all(lines.map(async (line) => {
+        const value = line.trim()
+        if (!value || value.startsWith("#")) return line
+        if (isMaster) {
+            const rendition = value.split("/")[0]
+            return `${manifestBaseUrl}/${encodeURIComponent(rendition)}.m3u8`
+        }
+        const segmentKey = `${path.posix.dirname(key)}/${value}`
+        return getSignedUrl(
+            s3,
+            new GetObjectCommand({ Bucket: AWS_BUCKET, Key: segmentKey }),
+            { expiresIn: VIDEO_URL_TTL_SECONDS }
+        )
+    }))
+    return `${rewritten.join("\n")}\n`
 }
 
 const getOwnedVideo = async (userId: string, videoId: string) => {

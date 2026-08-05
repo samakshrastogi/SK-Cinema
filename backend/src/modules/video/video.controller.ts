@@ -14,7 +14,8 @@ import {
     getUploadSpritesheet,
     saveThumbnailFromSpritesheet,
     updateOwnedVideo,
-    deleteOwnedVideo
+    deleteOwnedVideo,
+    getPublicHlsManifest
 } from "./video.service"
 import { nanoid } from "nanoid"
 import { prisma } from "../../config/prisma"
@@ -328,10 +329,15 @@ export const handleGetVideoById = async (
     try {
 
         const video = await getVideoById(publicId, req.user?.id)
+        const forwardedProto = String(req.headers["x-forwarded-proto"] || req.protocol).split(",")[0]
+        const forwardedHost = String(req.headers["x-forwarded-host"] || req.get("host"))
+        const hlsUrl = video.hlsAvailable
+            ? `${forwardedProto}://${forwardedHost}${req.baseUrl}/${encodeURIComponent(publicId)}/hls/master.m3u8`
+            : null
 
         return res.json({
             success: true,
-            data: video
+            data: { ...video, hlsUrl }
         })
 
     } catch (error: any) {
@@ -341,6 +347,25 @@ export const handleGetVideoById = async (
             message: error.message || "Video not found"
         })
 
+    }
+}
+
+export const handleGetHlsManifest = async (req: AuthRequest, res: Response) => {
+    try {
+        const { publicId, manifest } = req.params
+        if (!publicId || !manifest) return res.status(400).send("Invalid stream request")
+        const forwardedProto = String(req.headers["x-forwarded-proto"] || req.protocol).split(",")[0]
+        const forwardedHost = String(req.headers["x-forwarded-host"] || req.get("host"))
+        const base = `${forwardedProto}://${forwardedHost}${req.baseUrl}/${encodeURIComponent(publicId)}/hls`
+        const body = await getPublicHlsManifest(publicId, manifest, base)
+        res.set({
+            "Content-Type": "application/vnd.apple.mpegurl",
+            "Cache-Control": "private, max-age=30",
+            "Access-Control-Allow-Origin": process.env.CLIENT_URL || "*"
+        })
+        return res.status(200).send(body)
+    } catch (error: any) {
+        return res.status(404).send(error.message || "Adaptive stream unavailable")
     }
 }
 
