@@ -139,7 +139,7 @@ const signCloudFrontUrl = (key: string) => {
     const domain = process.env.CLOUDFRONT_DOMAIN?.trim()
     if (!key || !domain) {
         logger.warn("VIDEO_DELIVERY", "CloudFront URL could not be built because its domain or object key is missing")
-        return ""
+        return null
     }
 
     const url = `https://${domain}/${encodeURI(key)}`
@@ -147,8 +147,8 @@ const signCloudFrontUrl = (key: string) => {
     const privateKey = process.env.CLOUDFRONT_PRIVATE_KEY?.replace(/\\n/g, "\n").trim()
 
     if (!keyPairId || !privateKey) {
-        logger.warn("VIDEO_DELIVERY", "CloudFront signing is not configured; returning the distribution URL")
-        return url
+        logger.warn("VIDEO_DELIVERY", "CloudFront signing is not configured; using an S3 playback URL")
+        return null
     }
 
     try {
@@ -159,11 +159,29 @@ const signCloudFrontUrl = (key: string) => {
             dateLessThan: new Date(Date.now() + 60 * 60 * 1000).toISOString()
         })
     } catch (error) {
-        logger.error("VIDEO_DELIVERY", "CloudFront URL signing failed; returning the distribution URL", { error })
-        return url
+        logger.error("VIDEO_DELIVERY", "CloudFront URL signing failed; using an S3 playback URL", { error })
+        return null
     }
 }
 
+const getObjectDeliveryUrl = async (key: string) => {
+    const cloudFrontUrl = signCloudFrontUrl(key)
+    if (cloudFrontUrl) return cloudFrontUrl
+
+    try {
+        return await getSignedUrl(
+            s3,
+            new GetObjectCommand({
+                Bucket: AWS_BUCKET,
+                Key: key
+            }),
+            { expiresIn: 60 * 60 }
+        )
+    } catch (error) {
+        logger.error("VIDEO_DELIVERY", "S3 playback URL signing failed", { error })
+        throw error
+    }
+}
 export const generatePresignedUrl = async (
     userId: string,
     fileName: string,
@@ -367,7 +385,7 @@ export const completeUpload = async (
 
     const video = await prisma.video.create({
         data: {
-            publicId: nanoid(10), // âœ… ADD THIS
+            publicId: nanoid(10), // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ADD THIS
 
             title: submittedTitle || fallbackTitle,
             s3Key: key,
@@ -696,7 +714,7 @@ const hydrateVideoCards = async (videos: any[], userId?: string) => {
         metrics.userReaction = row.type === "LIKE" || row.type === "DISLIKE" ? row.type : null
     }
 
-    return videos.map((video) => {
+    return Promise.all(videos.map(async (video) => {
         const metrics = metricsByVideo.get(video.id)
         const userWatch = Array.isArray(video.watchHistory) ? video.watchHistory[0] : null
         const durationSeconds = video.metadata?.duration ?? null
@@ -714,7 +732,7 @@ const hydrateVideoCards = async (videos: any[], userId?: string) => {
             channel: video.channel,
             uploaderAvatarKey: video.channel.user?.avatarKey ?? null,
             uploaderAvatarUrl: video.channel.user?.avatarKey
-                ? signCloudFrontUrl(video.channel.user.avatarKey)
+                ? await getObjectDeliveryUrl(video.channel.user.avatarKey)
                 : null,
             uploaderName: video.channel.user?.name ?? null,
             createdAt: video.createdAt,
@@ -723,7 +741,7 @@ const hydrateVideoCards = async (videos: any[], userId?: string) => {
             duration: formatDurationLabel(durationSeconds),
             durationSeconds,
             visibility: video.visibility,
-            signedUrl: signCloudFrontUrl(video.s3Key),
+            signedUrl: await getObjectDeliveryUrl(video.s3Key),
             size: video.size,
             progress: rawProgress !== null ? Math.max(0, Math.min(100, rawProgress)) : undefined,
             watchedSeconds: userWatch?.watchedSeconds ?? 0,
@@ -742,7 +760,7 @@ const hydrateVideoCards = async (videos: any[], userId?: string) => {
             activeSessionsCount: metrics?.activeSessionsCount ?? 0,
             userReaction: metrics?.userReaction ?? null
         }
-    })
+    }))
 }
 
 export const getPortraitVideos = async (userId?: string) => {
@@ -1012,7 +1030,7 @@ export const searchVideos = async (query: string, userId?: string) => {
                 createdAt: video.createdAt,
                 thumbnailKey: video.thumbnailKey,
                 orientation: video.metadata?.orientation ?? null,
-                signedUrl: signCloudFrontUrl(video.s3Key),
+                signedUrl: await getObjectDeliveryUrl(video.s3Key),
                 size: video.size,
                 score: textScore + keywordTagScore
             }
@@ -1036,7 +1054,7 @@ export const getVideoById = async (publicId: string, userId?: string) => {
 
     const video = await prisma.video.findFirst({
         where: {
-            publicId, // âœ… CHANGED
+            publicId, // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ CHANGED
             status: ACTIVE_VIDEO_STATUS
         },
         include: {
@@ -1106,7 +1124,7 @@ export const getVideoById = async (publicId: string, userId?: string) => {
 
     return {
         id: video.id, // keep internal id if needed
-        publicId: video.publicId, // âœ… ADD THIS
+        publicId: video.publicId, // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ADD THIS
         title: video.title,
         aiTitle: video.aiData?.aiTitle ?? null,
         aiDescription: video.aiData?.aiDescription ?? null,
