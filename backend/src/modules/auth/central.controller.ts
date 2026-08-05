@@ -58,6 +58,34 @@ const verifyCentralToken = async (token: string): Promise<CentralPayload | null>
     return null;
 };
 
+const getCentralIdentity = async (email: string) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+        const response = await fetch(`${CENTRAL_API_URL}/auth/remembered-identities`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ emails: [email] }),
+            signal: controller.signal,
+        });
+        if (!response.ok) return null;
+        const result = await response.json() as {
+            data?: Array<{ email?: string; name?: string; avatarUrl?: string; avatarInitials?: string }>;
+        };
+        return result.data?.find((profile) => profile.email?.trim().toLowerCase() === email) ?? null;
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timeout);
+    }
+};
+
+const normalizeCentralAvatar = (value?: string) => {
+    const avatarUrl = value?.trim() || "";
+    if (avatarUrl.startsWith("https://") || avatarUrl.startsWith("data:image/")) return avatarUrl;
+    return null;
+};
+
 export const centralLogin = async (req: Request, res: Response) => {
     try {
         const token = typeof req.body?.token === "string" ? req.body.token : "";
@@ -65,6 +93,9 @@ export const centralLogin = async (req: Request, res: Response) => {
         if (!payload) return res.status(401).json({ success: false, message: "SK Central session expired or invalid" });
 
         const email = payload.email.trim().toLowerCase();
+        const centralIdentity = await getCentralIdentity(email);
+        const centralName = centralIdentity?.name?.trim() || payload.name;
+        const centralAvatar = normalizeCentralAvatar(centralIdentity?.avatarUrl);
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing?.deletedAt || existing?.deactivatedAt) {
             return res.status(403).json({ success: false, message: "This account is not available" });
@@ -74,7 +105,8 @@ export const centralLogin = async (req: Request, res: Response) => {
             ? await prisma.user.update({
                 where: { id: existing.id },
                 data: {
-                    name: payload.name || existing.name,
+                    name: centralName || existing.name,
+                    avatarKey: centralAvatar || existing.avatarKey,
                     isVerified: true,
                     platformAdmin: payload.role === "admin" ? true : existing.platformAdmin,
                 },
@@ -82,8 +114,9 @@ export const centralLogin = async (req: Request, res: Response) => {
             : await prisma.user.create({
                 data: {
                     email,
-                    name: payload.name,
+                    name: centralName,
                     username: await createUniqueUsername(email),
+                    avatarKey: centralAvatar,
                     isVerified: true,
                     platformAdmin: payload.role === "admin",
                     provider: "LOCAL",
@@ -117,6 +150,7 @@ export const centralLogin = async (req: Request, res: Response) => {
                     username: user.username,
                     name: user.name,
                     avatarKey: user.avatarKey,
+                    avatarUrl: user.avatarKey,
                     platformAdmin: user.platformAdmin,
                 },
             },

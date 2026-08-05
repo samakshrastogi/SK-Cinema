@@ -100,6 +100,7 @@ const revokeAllUserSessions = async (userId: string, reason: string, excludeLogi
 /* ---------------- CF SIGN ---------------- */
 
 const signCloudFrontUrl = (key: string) => {
+    if (/^https?:\/\//i.test(key) || key.startsWith("data:image/")) return key
     const encodedKey = encodeURI(key)
 
     const url = `https://${process.env.CLOUDFRONT_DOMAIN}/${encodedKey}`
@@ -454,15 +455,26 @@ router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
             channelDescription
         } = req.body
 
-        const finalChannelName = (channelTitle ?? channelName ?? "").trim()
+        const finalName = String(name ?? "").trim()
+        const finalChannelName = String(channelTitle ?? channelName ?? "").trim()
         const finalChannelDescription = (
             channelDescription ?? description ?? ""
-        ).trim()
+        ).toString().trim()
+
+        if (!finalName) {
+            return res.status(400).json({ success: false, message: "Name is required" })
+        }
+        if (!finalChannelName) {
+            return res.status(400).json({ success: false, message: "Channel title is required" })
+        }
+        if (finalName.length > 80 || finalChannelName.length > 100 || finalChannelDescription.length > 1000) {
+            return res.status(400).json({ success: false, message: "One or more profile fields are too long" })
+        }
 
         const user = await prisma.user.update({
             where: { id: req.user.id },
             data: {
-                name: name?.trim() || undefined,
+                name: finalName,
                 username: username?.trim() || undefined
             }
         })
@@ -504,7 +516,7 @@ router.patch("/profile", authenticate, async (req: AuthRequest, res) => {
     } catch (error) {
         return res.status(500).json({
             success: false,
-            message: "Profile update failed"
+            message: error?.code === "P2002" ? "That username is already in use" : "Profile update failed"
         })
     }
 })

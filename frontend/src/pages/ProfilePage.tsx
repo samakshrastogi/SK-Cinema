@@ -12,11 +12,13 @@ import {
     Shield,
     Sparkles,
     Trash2,
-    UploadCloud
+    UploadCloud,
+    X
 } from "lucide-react"
 
 import AppLayout from "@/layouts/AppLayout"
 import { api } from "@/api/axios"
+import { CENTRAL_PROFILE_URL } from "@/api/centralAuth"
 import UserAvatar from "@/components/UserAvatar"
 import SpritesheetPicker from "@/components/SpritesheetPicker"
 import { useAuth } from "@/context/AuthContext"
@@ -61,7 +63,7 @@ interface Video {
     }
 }
 
-interface RawVideo extends Video {}
+type RawVideo = Video
 
 interface SpritesheetData {
     spritesheetUrl: string
@@ -84,10 +86,11 @@ interface EditModalProps {
     setChannelName: (v: string) => void
     description: string
     setDescription: (v: string) => void
-    onAvatarChange: (file: File) => void
+    onManageAvatar: () => void
     onCoverChange: (file: File) => void
     onClose: () => void
     onSave: () => void
+    saving: boolean
 }
 
 interface EditVideoModalProps {
@@ -192,6 +195,7 @@ const ProfilePage = () => {
     const [channelName, setChannelName] = useState(cached?.channelName || "")
     const [description, setDescription] = useState(cached?.description || "")
     const [message, setMessage] = useState("")
+    const [savingProfile, setSavingProfile] = useState(false)
 
     const [editingVideo, setEditingVideo] = useState<Video | null>(null)
     const [videoTitle, setVideoTitle] = useState("")
@@ -240,37 +244,43 @@ const ProfilePage = () => {
         try {
             const res = await api.get("/user/me")
             const data = res.data?.data || {}
+            const profileUser = data.user
+                ? {
+                    ...data.user,
+                    avatarUrl: authUser?.avatarUrl || data.user.avatarUrl,
+                    avatarKey: authUser?.avatarUrl ? undefined : data.user.avatarKey
+                }
+                : null
 
-            setUser(data.user || null)
-            if (data.user) updateUser(data.user)
+            setUser(profileUser)
+            if (profileUser) updateUser(profileUser)
             setStats(data.stats || null)
             setHistory(normalizeVideos(data.history))
+            setName(data.user?.name || "")
+            setChannelName(data.channel?.name || "")
+            setDescription(data.channel?.description || "")
 
             if (data.channel?.id) {
-                const [publicRes, privateRes, orgRes] = await Promise.all([
+                const results = await Promise.allSettled([
                     api.get(`/video/channel/${data.channel.id}/public`),
                     api.get(`/video/channel/${data.channel.id}/private`),
                     api.get(`/video/channel/${data.channel.id}/organization`)
                 ])
 
-                setPublicVideos(normalizeVideos(publicRes.data.data))
-                setPrivateVideos(normalizeVideos(privateRes.data.data))
-                setOrganizationVideos(normalizeVideos(orgRes.data.data))
+                setPublicVideos(results[0].status === "fulfilled" ? normalizeVideos(results[0].value.data.data) : [])
+                setPrivateVideos(results[1].status === "fulfilled" ? normalizeVideos(results[1].value.data.data) : [])
+                setOrganizationVideos(results[2].status === "fulfilled" ? normalizeVideos(results[2].value.data.data) : [])
             } else {
                 setPublicVideos([])
                 setPrivateVideos([])
                 setOrganizationVideos([])
             }
-
-            setName(data.user?.name || "")
-            setChannelName(data.channel?.name || "")
-            setDescription(data.channel?.description || "")
         } catch {
-            // ignore
+            setMessage("Profile could not be refreshed. Please try again.")
         } finally {
             setLoading(false)
         }
-    }, [updateUser])
+    }, [authUser?.avatarUrl, updateUser])
 
     useEffect(() => {
         void fetchProfile()
@@ -310,39 +320,48 @@ const ProfilePage = () => {
     }, [user, stats, publicVideos, privateVideos, organizationVideos, history, name, channelName, description])
 
     const saveProfile = async () => {
-        try {
-            await api.patch("/user/profile", {
-                name,
-                channelName,
-                channelTitle: channelName,
-                description,
-                channelDescription: description
-            })
+        const trimmedName = name.trim()
+        const trimmedChannelName = channelName.trim()
+        const trimmedDescription = description.trim()
 
-            await fetchProfile()
+        if (!trimmedName) {
+            setMessage("Name is required.")
+            return
+        }
+        if (!trimmedChannelName) {
+            setMessage("Channel title is required.")
+            return
+        }
+
+        try {
+            setSavingProfile(true)
+            setMessage("")
+            const response = await api.patch("/user/profile", {
+                name: trimmedName,
+                channelTitle: trimmedChannelName,
+                channelDescription: trimmedDescription
+            })
+            const updatedUser = {
+                ...(user || {}),
+                ...(response.data?.data?.user || {}),
+                avatarUrl: authUser?.avatarUrl || user?.avatarUrl,
+                avatarKey: authUser?.avatarUrl ? undefined : user?.avatarKey
+            }
+
+            setUser(updatedUser)
+            updateUser(updatedUser)
+            setName(response.data?.data?.user?.name || trimmedName)
+            setChannelName(response.data?.data?.channel?.name || trimmedChannelName)
+            setDescription(response.data?.data?.channel?.description ?? trimmedDescription)
             setEditOpen(false)
             setMessage("Profile updated.")
-        } catch {
-            setMessage("Failed to update profile.")
-        }
-    }
-
-    const uploadAvatar = async (file: File) => {
-        try {
-            const uploadRes = await api.post("/user/avatar-upload-url", { fileType: file.type })
-            const { uploadUrl, key } = uploadRes.data
-
-            await fetch(uploadUrl, {
-                method: "PUT",
-                headers: { "Content-Type": file.type },
-                body: file
-            })
-
-            await api.post("/user/avatar", { key })
-            await fetchProfile()
-            setMessage("Avatar updated.")
-        } catch {
-            setMessage("Failed to update avatar.")
+        } catch (error) {
+            const apiMessage = axios.isAxiosError(error)
+                ? error.response?.data?.message
+                : null
+            setMessage(apiMessage || "Failed to update profile.")
+        } finally {
+            setSavingProfile(false)
         }
     }
 
@@ -787,10 +806,11 @@ const ProfilePage = () => {
                         setChannelName={setChannelName}
                         description={description}
                         setDescription={setDescription}
-                        onAvatarChange={uploadAvatar}
+                        onManageAvatar={() => window.location.assign(CENTRAL_PROFILE_URL)}
                         onCoverChange={uploadCover}
                         onClose={() => setEditOpen(false)}
                         onSave={saveProfile}
+                        saving={savingProfile}
                     />
                 ) : null}
             </AnimatePresence>
@@ -1084,10 +1104,11 @@ const EditModal = ({
     setChannelName,
     description,
     setDescription,
-    onAvatarChange,
+    onManageAvatar,
     onCoverChange,
     onClose,
-    onSave
+    onSave,
+    saving
 }: EditModalProps) => (
     <motion.div
         initial={{ opacity: 0 }}
@@ -1113,7 +1134,7 @@ const EditModal = ({
                         onClick={onClose}
                         className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/10 text-purple-100/80 transition hover:bg-white/16 hover:text-white"
                     >
-                        ✕
+                        <X className="h-5 w-5" />
                     </button>
                 </div>
 
@@ -1128,18 +1149,13 @@ const EditModal = ({
                                 avatarKey={avatarKey}
                                 className="h-18 w-18 border-2 border-white/20 text-lg shadow-lg"
                             />
-                            <label className="cursor-pointer rounded-xl border border-white/10 bg-white/14 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20">
-                                Change
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(event) => {
-                                        const file = event.target.files?.[0]
-                                        if (file) onAvatarChange(file)
-                                    }}
-                                />
-                            </label>
+                            <button
+                                type="button"
+                                onClick={onManageAvatar}
+                                className="rounded-xl border border-white/10 bg-white/14 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+                            >
+                                Manage in SK Central
+                            </button>
                         </div>
                     </div>
 
@@ -1202,9 +1218,10 @@ const EditModal = ({
                     </button>
                     <button
                         onClick={onSave}
+                        disabled={saving}
                         className="rounded-xl bg-linear-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_32px_rgba(168,85,247,0.34)] transition hover:brightness-110"
                     >
-                        Save Changes
+                        {saving ? "Saving..." : "Save Changes"}
                     </button>
                 </div>
             </div>
@@ -1265,7 +1282,7 @@ const EditVideoModal = ({
                         onClick={onClose}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/8 text-gray-300 transition hover:bg-white/14 hover:text-white"
                     >
-                        ✕
+                        <X className="h-5 w-5" />
                     </button>
                 </div>
 

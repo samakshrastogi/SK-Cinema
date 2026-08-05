@@ -136,6 +136,7 @@ const formatDurationLabel = (durationSeconds?: number | null) => {
 }
 
 const signCloudFrontUrl = (key: string) => {
+    if (/^https?:\/\//i.test(key) || key.startsWith("data:image/")) return key
     const domain = process.env.CLOUDFRONT_DOMAIN?.trim()
     if (!key || !domain) {
         logger.warn("VIDEO_DELIVERY", "CloudFront URL could not be built because its domain or object key is missing")

@@ -4,6 +4,7 @@ import {
     useContext,
     useState,
     useEffect,
+    useCallback,
 } from "react"
 import { api, clearStoredAuth, setAuthToken } from "@/api/axios"
 import { API_URL } from "@/config/env"
@@ -324,10 +325,10 @@ export const AuthProvider = ({
     const login = (
         token: string,
         user: User,
-        _remember = false,
+        remember = false,
         loginIdValue?: string | null
     ) => {
-
+        void remember
         sessionStorage.removeItem("token")
         sessionStorage.removeItem("user")
         sessionStorage.removeItem("loginId")
@@ -335,7 +336,8 @@ export const AuthProvider = ({
         localStorage.removeItem("loginId")
 
         localStorage.setItem("token", token)
-        localStorage.setItem("user", JSON.stringify(user))
+        const mergedUser = mergeCentralProfile(user)
+        localStorage.setItem("user", JSON.stringify(mergedUser))
         localStorage.setItem("sessionStart", String(Date.now()))
         if (loginIdValue) {
             localStorage.setItem("loginId", String(loginIdValue))
@@ -343,7 +345,7 @@ export const AuthProvider = ({
         }
 
         setToken(token)
-        setUser(user)
+        setUser(mergedUser)
 
     }
 
@@ -358,7 +360,8 @@ export const AuthProvider = ({
         localStorage.removeItem("loginId")
 
         localStorage.setItem("token", token)
-        localStorage.setItem("user", JSON.stringify(user))
+        const mergedUser = mergeCentralProfile(user)
+        localStorage.setItem("user", JSON.stringify(mergedUser))
         localStorage.setItem("sessionStart", String(Date.now()))
         if (loginIdParam) {
             localStorage.setItem("loginId", String(loginIdParam))
@@ -366,18 +369,19 @@ export const AuthProvider = ({
         }
 
         setToken(token)
-        setUser(user)
+        setUser(mergedUser)
 
     }
 
     /* ---------------- UPDATE USER (PROFILE / AVATAR) ---------------- */
 
-    const updateUser = (updatedUser: User) => {
+    const updateUser = useCallback((updatedUser: User) => {
 
-        setUser(updatedUser)
-        localStorage.setItem("user", JSON.stringify(updatedUser))
+        const mergedUser = mergeCentralProfile(updatedUser)
+        setUser(mergedUser)
+        localStorage.setItem("user", JSON.stringify(mergedUser))
 
-    }
+    }, [])
 
     /* ---------------- LOGOUT ---------------- */
 

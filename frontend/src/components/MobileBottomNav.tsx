@@ -15,7 +15,7 @@ const MobileBottomNav = () => {
 
     return (
         <div
-            className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-0 z-40 w-full px-4"
+            className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-0 z-40 w-full px-4 md:hidden"
         >
             <div className="mx-auto flex max-w-sm items-center justify-between rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] px-2 py-2 shadow-[0_22px_60px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
                 {items.map(({ icon: Icon, path, label }) => {

@@ -10,6 +10,7 @@ import {
 } from "../notification/notification.service"
 
 const signCloudFrontUrl = (key: string) => {
+    if (/^https?:\/\//i.test(key) || key.startsWith("data:image/")) return key
     const encodedKey = encodeURI(key)
     const url = `https://${process.env.CLOUDFRONT_DOMAIN}/${encodedKey}`
 
