@@ -881,7 +881,7 @@ export const getOrganizationRowVideos = async (
         }
     })
 
-    return videos.map((video) => ({
+    return Promise.all(videos.map(async (video) => ({
         publicId: video.publicId,
         title: video.title,
         aiTitle: video.aiData?.aiTitle ?? null,
@@ -895,9 +895,9 @@ export const getOrganizationRowVideos = async (
         createdAt: video.createdAt,
         thumbnailKey: video.thumbnailKey,
         orientation: video.metadata?.orientation ?? null,
-        signedUrl: signCloudFrontUrl(video.s3Key),
+        signedUrl: await getObjectDeliveryUrl(video.s3Key),
         size: video.size
-    }))
+    })))
 }
 
 export const searchVideos = async (query: string, userId?: string) => {
@@ -1138,7 +1138,7 @@ export const getVideoById = async (publicId: string, userId?: string) => {
         createdAt: video.createdAt,
         thumbnailKey: video.thumbnailKey,
         orientation: video.metadata?.orientation ?? null,
-        signedUrl: signCloudFrontUrl(video.s3Key),
+        signedUrl: await getObjectDeliveryUrl(video.s3Key),
         size: video.size.toString(),
         visibility: video.visibility
     }

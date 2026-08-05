@@ -9,11 +9,13 @@ export const prefetchMedia = (url?: string | null) => {
         return
     }
 
+    const mediaUrl = new URL(url, window.location.href)
+    if (mediaUrl.origin !== window.location.origin) return
+
     const link = document.createElement("link")
     link.rel = "prefetch"
-    link.href = url
-    link.crossOrigin = "anonymous"
+    link.href = mediaUrl.href
 
     document.head.appendChild(link)
-    prefetchedMediaUrls.add(url)
+    prefetchedMediaUrls.add(mediaUrl.href)
 }
