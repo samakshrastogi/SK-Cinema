@@ -47,6 +47,7 @@ if (!AWS_BUCKET) {
 const ACTIVE_VIDEO_STATUS = "ACTIVE"
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000
+const VIDEO_URL_TTL_SECONDS = Math.min(24 * 60 * 60, Math.max(15 * 60, Number(process.env.VIDEO_URL_TTL_SECONDS) || 6 * 60 * 60))
 
 const normalizeId = (value: unknown) => String(value || "").trim()
 
@@ -179,7 +180,7 @@ const getObjectDeliveryUrl = async (key: string) => {
                 Bucket: AWS_BUCKET,
                 Key: key
             }),
-            { expiresIn: 60 * 60 }
+            { expiresIn: VIDEO_URL_TTL_SECONDS }
         )
     } catch (error) {
         logger.error("VIDEO_DELIVERY", "S3 playback URL signing failed", { error })

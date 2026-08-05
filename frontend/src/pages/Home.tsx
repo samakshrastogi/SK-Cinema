@@ -6,6 +6,7 @@ import AppLayout from "@/layouts/AppLayout"
 import HeroCarousel from "@/components/HeroCarousel"
 import VideoRow from "@/components/VideoRow"
 import { getCachedPageData, setCachedPageData } from "@/utils/pageCache"
+import { useAuth } from "@/context/AuthContext"
 
 /* ---------------- TYPES ---------------- */
 
@@ -185,12 +186,13 @@ const takeShelf = (source: Video[], limit: number, consumed?: Set<string>) => {
 /* ---------------- COMPONENT ---------------- */
 
 const Home = () => {
+  const { user } = useAuth()
   const cached = getCachedPageData<HomePageCache>("page:home")
   const savedOrgStorageKey = "home:last-selected-organization"
 
   const [videos, setVideos] = useState<Video[]>(cached?.videos || [])
-  const [landscapeVideos, setLandscapeVideos] = useState<Video[]>(cached?.landscapeVideos || [])
-  const [portraitVideos, setPortraitVideos] = useState<Video[]>(cached?.portraitVideos || [])
+  const [landscapeVideos, setLandscapeVideos] = useState<Video[]>(cached?.landscapeVideos || cached?.videos?.filter((v) => v.orientation !== "PORTRAIT") || [])
+  const [portraitVideos, setPortraitVideos] = useState<Video[]>(cached?.portraitVideos || cached?.videos?.filter((v) => v.orientation === "PORTRAIT") || [])
   const [orgVideos, setOrgVideos] = useState<Video[]>(cached?.orgVideos || [])
   const [orgMemberships, setOrgMemberships] = useState<OrganizationMembership[]>(cached?.orgMemberships || [])
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(cached?.selectedOrgId || null)
@@ -201,7 +203,7 @@ const Home = () => {
 
   /* ---------------- HELPERS ---------------- */
 
-  const normalize = (videos: RawVideo[]): Video[] => {
+  const normalize = useCallback((videos: RawVideo[]): Video[] => {
     if (!Array.isArray(videos)) return []
 
     return videos.map(v => ({
@@ -216,8 +218,8 @@ const Home = () => {
       duration: v.duration,
       durationSeconds: v.durationSeconds ?? null,
       progress: v.progress,
-      uploaderAvatarKey: v.uploaderAvatarKey ?? undefined,
-      uploaderAvatarUrl: v.uploaderAvatarUrl ?? undefined,
+      uploaderAvatarKey: v.channel?.username === user?.username && user?.avatarUrl ? undefined : v.uploaderAvatarKey ?? undefined,
+      uploaderAvatarUrl: v.channel?.username === user?.username && user?.avatarUrl ? user.avatarUrl : v.uploaderAvatarUrl ?? undefined,
       uploaderName: v.uploaderName ?? undefined,
       createdAt: v.createdAt ?? undefined,
       lastWatchedAt: v.lastWatchedAt ?? null,
@@ -240,7 +242,7 @@ const Home = () => {
       userReaction: v.userReaction ?? null,
       channel: v.channel ?? undefined
     }))
-  }
+  }, [user?.avatarUrl, user?.username])
 
   /* ---------------- FETCH ---------------- */
 
@@ -289,7 +291,7 @@ const Home = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [normalize])
 
   useEffect(() => {
     fetchHomeData()
@@ -315,7 +317,7 @@ const Home = () => {
     } finally {
       setOrgRowLoading(false)
     }
-  }, [])
+  }, [normalize])
 
   useEffect(() => {
     if (selectedOrgId) {
@@ -332,15 +334,17 @@ const Home = () => {
   }, [selectedOrgId])
 
   useEffect(() => {
+    const withoutExpiringPlaybackUrls = (items: Video[]) =>
+      items.map((video) => ({ ...video, signedUrl: undefined }))
     setCachedPageData<HomePageCache>("page:home", {
-      videos,
-      landscapeVideos,
-      portraitVideos,
-      orgVideos,
+      videos: withoutExpiringPlaybackUrls(videos),
+      landscapeVideos: withoutExpiringPlaybackUrls(landscapeVideos),
+      portraitVideos: withoutExpiringPlaybackUrls(portraitVideos),
+      orgVideos: withoutExpiringPlaybackUrls(orgVideos),
       orgMemberships,
       selectedOrgId,
       selectedOrgName
-    }, 120000)
+    }, 6 * 60 * 60 * 1000)
   }, [videos, landscapeVideos, portraitVideos, orgVideos, orgMemberships, selectedOrgId, selectedOrgName])
 
   const publicLandscapeVideos = useMemo(

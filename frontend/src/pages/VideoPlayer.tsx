@@ -7,6 +7,7 @@ import UserAvatar from "@/components/UserAvatar"
 import SharePopup from "@/components/SharePopup"
 import type { Video as VideoCardVideo } from "@/components/VideoCard"
 import { prefetchMedia } from "@/utils/media"
+import { getCachedPageData, setCachedPageData } from "@/utils/pageCache"
 
 interface VideoDetail {
     id: string
@@ -91,6 +92,7 @@ const VideoPlayer = () => {
     const commentsRef = useRef<HTMLDivElement | null>(null)
     const playlistMenuRef = useRef<HTMLDivElement | null>(null)
     const navigationVideo = (location.state as { video?: VideoCardVideo } | null)?.video
+    const cachedVideo = publicId ? getCachedPageData<VideoDetail>("video-detail:v2:" + publicId) : null
 
     const { user } = useAuth()
     const currentUsername = user?.username
@@ -100,7 +102,7 @@ const VideoPlayer = () => {
         return false
     }
 
-    const [video, setVideo] = useState<VideoDetail | null>(() => toVideoDetail(navigationVideo))
+    const [video, setVideo] = useState<VideoDetail | null>(() => toVideoDetail(navigationVideo) || cachedVideo)
     const [related, setRelated] = useState<RelatedVideo[]>([])
     const [likes, setLikes] = useState(0)
     const [dislikes, setDislikes] = useState(0)
@@ -124,6 +126,7 @@ const VideoPlayer = () => {
     const [shouldScroll, setShouldScroll] = useState(false)
     const watchedBufferRef = useRef(0)
     const watchIntervalRef = useRef<number | null>(null)
+    const lastSavedPositionRef = useRef(0)
     const descriptionRef = useRef<HTMLParagraphElement | null>(null)
 
     useEffect(() => {
@@ -147,17 +150,18 @@ const VideoPlayer = () => {
                 return
             }
 
+            setCachedPageData<VideoDetail>("video-detail:v2:" + publicId, videoData, 30 * 60 * 1000)
             setVideo((current) => {
-                const currentSignedUrl =
-                    current && current.publicId === publicId ? current.signedUrl : undefined
-                if (currentSignedUrl) {
-                    return {
-                        ...videoData,
-                        signedUrl: currentSignedUrl
-                    }
-                }
-
-                return videoData
+                const keepActiveSource = Boolean(
+                    current?.publicId === publicId &&
+                    current?.signedUrl &&
+                    videoRef.current &&
+                    videoRef.current.currentTime > 0 &&
+                    !videoRef.current.ended
+                )
+                return keepActiveSource
+                    ? { ...videoData, signedUrl: current!.signedUrl }
+                    : videoData
             })
 
             void api.get("/video").then((relatedRes) => {
@@ -165,7 +169,8 @@ const VideoPlayer = () => {
                 setRelated(allVideos.filter((v) => v.publicId !== publicId))
             }).catch(() => {
             })
-        } catch (error) {
+        } catch {
+            // Keep the current cached UI when an optional browser or network action fails.
         }
     }
 
@@ -294,16 +299,18 @@ const VideoPlayer = () => {
         if (method === "COPY_LINK") {
             try {
                 await navigator.clipboard.writeText(videoLink)
-            } catch (error) {
-            }
+            } catch {
+            // Keep the current cached UI when an optional browser or network action fails.
+        }
         } else if (method === "NATIVE" && "share" in navigator) {
             try {
                 await navigator.share({
                     title: video.aiTitle || video.title,
                     url: videoLink
                 })
-            } catch (error) {
-            }
+            } catch {
+            // Keep the current cached UI when an optional browser or network action fails.
+        }
         } else if (targetUrl) {
             window.open(targetUrl, "_blank", "noopener,noreferrer")
         }
@@ -321,7 +328,26 @@ const VideoPlayer = () => {
         loadActions()
     }
 
+    const playbackPositionKey = "mediaflow:playback:" + (user?.id || "anonymous") + ":" + publicId
+
+    const handleLoadedMetadata = () => {
+        if (!videoRef.current) return
+        const savedPosition = Number(localStorage.getItem(playbackPositionKey) || 0)
+        if (Number.isFinite(savedPosition) && savedPosition > 0 && savedPosition < videoRef.current.duration - 3) {
+            videoRef.current.currentTime = savedPosition
+            lastSavedPositionRef.current = Math.floor(savedPosition)
+        }
+    }
+
+    const handleTimeUpdate = () => {
+        const currentSecond = Math.floor(videoRef.current?.currentTime || 0)
+        if (currentSecond <= 0 || Math.abs(currentSecond - lastSavedPositionRef.current) < 5) return
+        lastSavedPositionRef.current = currentSecond
+        localStorage.setItem(playbackPositionKey, String(currentSecond))
+    }
+
     const handleEnded = () => {
+        localStorage.removeItem(playbackPositionKey)
         if (related.length > 0) {
             navigate(`/video/${related[0].publicId}`)
         }
@@ -345,7 +371,8 @@ const VideoPlayer = () => {
     useEffect(() => {
         if (!publicId) return
         if (navigationVideo?.publicId !== publicId) {
-            setVideo((current) => current?.publicId === publicId ? current : null)
+            const routeCachedVideo = getCachedPageData<VideoDetail>("video-detail:v2:" + publicId)
+            setVideo((current) => current?.publicId === publicId ? current : routeCachedVideo)
         }
         loadVideo()
         loadActions()
@@ -368,7 +395,7 @@ const VideoPlayer = () => {
     }, [publicId])
 
     useEffect(() => {
-        if (!publicId || !user) return
+        if (!publicId || !user?.id) return
 
         const flushWatch = async (forceSeconds?: number) => {
             const watchedSeconds = Math.floor(forceSeconds ?? watchedBufferRef.current)
@@ -414,7 +441,7 @@ const VideoPlayer = () => {
             el.removeEventListener("ended", stopWatchTicker)
             stopWatchTicker()
         }
-    }, [publicId])
+    }, [publicId, user?.id])
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -513,6 +540,8 @@ const VideoPlayer = () => {
                             playsInline
                             preload="auto"
                             controlsList="nodownload"
+                            onLoadedMetadata={handleLoadedMetadata}
+                            onTimeUpdate={handleTimeUpdate}
                             onEnded={handleEnded}
                             className="block aspect-video max-h-[78vh] w-full bg-black object-contain"
                         />
@@ -545,8 +574,8 @@ const VideoPlayer = () => {
                                 <div className="flex min-w-0 items-center gap-3">
                                     <UserAvatar
                                         name={video.uploaderName || video.channel.name}
-                                        avatarUrl={video.uploaderAvatarUrl}
-                                        avatarKey={video.uploaderAvatarKey}
+                                        avatarUrl={video.channel.username === currentUsername && user?.avatarUrl ? user.avatarUrl : video.uploaderAvatarUrl}
+                                        avatarKey={video.channel.username === currentUsername && user?.avatarUrl ? undefined : video.uploaderAvatarKey}
                                         alt={video.channel.name}
                                     />
 
