@@ -1,58 +1,14 @@
-import { useEffect, useState } from "react"
-import { Home, Search, Film, Heart, Smartphone, User } from "lucide-react"
+import { Building2, Home, Search, UploadCloud, User } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { api } from "@/api/axios"
-
-let portraitAvailabilityPromise: Promise<boolean> | null = null
-let portraitAvailabilityCache: boolean | null = null
-
-const getPortraitAvailability = async () => {
-    if (portraitAvailabilityCache !== null) return portraitAvailabilityCache
-
-    if (!portraitAvailabilityPromise) {
-        portraitAvailabilityPromise = api.get("/video/portrait")
-            .then((res) => {
-                portraitAvailabilityCache = (res.data?.data || []).length > 0
-                return portraitAvailabilityCache
-            })
-            .catch(() => {
-                portraitAvailabilityCache = false
-                return false
-            })
-            .finally(() => {
-                portraitAvailabilityPromise = null
-            })
-    }
-
-    return portraitAvailabilityPromise
-}
-
 const Sidebar = () => {
     const navigate = useNavigate()
     const location = useLocation()
-    const [hasPortraitVideos, setHasPortraitVideos] = useState(false)
-
-    useEffect(() => {
-        let mounted = true
-        void getPortraitAvailability().then((hasVideos) => {
-            if (mounted) {
-                setHasPortraitVideos(hasVideos)
-            }
-        })
-
-        return () => {
-            mounted = false
-        }
-    }, [])
 
     const items = [
         { icon: Home, path: "/home", label: "Home" },
         { icon: Search, path: "/search", label: "Search" },
-        ...(hasPortraitVideos
-            ? [{ icon: Smartphone, path: "/portrait", label: "Portrait" }]
-            : []),
-        { icon: Film, path: "/playlists", label: "Playlists" },
-        { icon: Heart, path: "/favorites", label: "Favorites" },
+        { icon: UploadCloud, path: "/upload", label: "Upload" },
+        { icon: Building2, path: "/organization", label: "Organization" },
         { icon: User, path: "/profile", label: "Profile" }
     ]
 

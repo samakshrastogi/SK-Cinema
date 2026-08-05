@@ -11,7 +11,8 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "optimize:videos": "ts-node --transpile-only src/scripts/optimize-existing-videos.ts",
-    "build": "tsc --pretty",
+    "build": "tsc --pretty && npm run verify:syntax",
+    "verify:syntax": "node --check dist/modules/video/video.service.js",
     "start": "node dist/server.js",
     "worker": "node dist/workers/index.js"
   },

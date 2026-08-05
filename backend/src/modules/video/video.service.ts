@@ -997,8 +997,7 @@ export const searchVideos = async (query: string, userId?: string) => {
         take: 100
     })
 
-    return videos
-        .map((video) => {
+    const scoredVideos = await Promise.all(videos.map(async (video) => {
             const title = video.title || ""
             const aiTitle = video.aiData?.aiTitle || ""
             const description = video.aiData?.aiDescription || ""
@@ -1038,7 +1037,9 @@ export const searchVideos = async (query: string, userId?: string) => {
                 size: video.size,
                 score: textScore + keywordTagScore
             }
-        })
+        }))
+
+    return scoredVideos
         .sort((a, b) => b.score - a.score)
         .map(({ score: _score, ...video }) => video)
 }
