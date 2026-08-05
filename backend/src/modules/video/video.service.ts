@@ -166,8 +166,11 @@ const signCloudFrontUrl = (key: string) => {
 }
 
 const getObjectDeliveryUrl = async (key: string) => {
-    const cloudFrontUrl = signCloudFrontUrl(key)
-    if (cloudFrontUrl) return cloudFrontUrl
+    const deliveryProvider = process.env.VIDEO_DELIVERY_PROVIDER?.trim().toLowerCase() || "s3"
+    if (deliveryProvider === "cloudfront") {
+        const cloudFrontUrl = signCloudFrontUrl(key)
+        if (cloudFrontUrl) return cloudFrontUrl
+    }
 
     try {
         return await getSignedUrl(
